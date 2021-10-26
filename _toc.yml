@@ -1,0 +1,37 @@
+# Table of contents
+# Learn more at https://jupyterbook.org/customize/toc.html
+
+format: jb-book
+root: index
+
+chapters:
+  - file: ToDos
+  - file: Measurements/Measurements
+    sections:
+    - file: Measurements/20210602
+    - file: Measurements/20210813
+    - file: Measurements/20210814
+    - file: Measurements/20210818
+    - file: Measurements/20210820
+    - file: Measurements/20210821
+    - file: Measurements/20210823
+    - file: Measurements/20211008
+    - file: Measurements/20211013
+    - file: Measurements/20211014
+    - file: Measurements/20211019
+    - file: Measurements/20211020
+    - file: Measurements/20211021
+  - file: Open_Issues/Open_Issues
+    sections:
+    - file: Open_Issues/PhaseDelay
+    - file: Open_Issues/FineZero
+    - file: Crosstalk/Crosstalk   
+  - file: HowTos/HowTo
+    sections:
+    - file: HowTos/MuCoils
+    - file: HowTos/SensorCableNumber
+    - file: HowTos/ChopCalibData
+    - file: HowTos/Markdown
+
+  
+ 
