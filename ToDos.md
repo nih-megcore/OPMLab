@@ -1,6 +1,6 @@
 # To Dos
 
-
+(This file has not been updated since ~July 2021)
 
 - **Engineering Challenges:**
  
@@ -40,9 +40,9 @@
  
 - **Calibration**
 
-    - [] Verify fitting algorithm with new OPMcal data
-    - [] Collect longer datasets at reduced coil currents
-    - [] Collect datasets with and without additional spacing between array and calibrator
+    - [ ] Verify fitting algorithm with new OPMcal data
+    - [ ] Collect longer datasets at reduced coil currents
+    - [ ] Collect datasets with and without additional spacing between array and calibrator
     - [ ] Test different fitting methods (L-M, simplex, beamformer scan, etc.) for performance and accuracy
     - [ ] Test OPMcal using theoretical predictions with added noise (done, but repeat at every iteration of the software as a sanity check)
     - [ ] Compare field maps from MtoB, LtoB, and computational methods with measured fieldmaps from the CTF MEG and from the OPMs
