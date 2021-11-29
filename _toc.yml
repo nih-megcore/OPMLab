@@ -29,6 +29,7 @@ chapters:
     - file: Measurements/20211116
     - file: Measurements/20211117
     - file: Measurements/20211118
+    - file: Measurements/20211124
   - file: Open_Issues/Open_Issues
     sections:
     - file: Open_Issues/PhaseDelay
