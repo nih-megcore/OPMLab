@@ -1,0 +1,3 @@
+#! /bin/sh
+
+~/numato.py "gpio writeall 00"

@@ -1,10 +1,10 @@
 # Python Related #
 ###################
+__pycache__/
 *.pyc
 docs/_*/*
 docs/auto_examples
 docs/modules
-*.log
 *.egg*
 _build/
 dist/
@@ -12,10 +12,6 @@ dist/
 htmlcov
 .pytest_cache/*
 dev/
-
-# Data #
-###################
-data/localizer/
 
 # Logs and databases #
 ######################
@@ -52,3 +48,17 @@ htmlcov/
 .tox
 .tox/*
 .DS_Store
+
+# Imported from pyctf #
+#######################
+jig.py
+
+# Backup files #
+################
+*~
+
+# Data #
+########
+*.npy
+testData/
+data/
