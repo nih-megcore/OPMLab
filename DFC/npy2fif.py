@@ -2,7 +2,7 @@ import mne
 import numpy as np
 
 def npy2fif(sPath, rawADC, rawRef, rawPrim, chNames, calib):
-
+    print("[npy2fif]")
     g = 1e9
     n_channels = len(chNames)
     sfreq = 1000
