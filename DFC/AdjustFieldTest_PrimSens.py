@@ -121,10 +121,13 @@ def getInfo(ip_list):
     print("[getInfo]")
     ch_names = []
     calib = []
+#    calib_Ref = []
+#    calib_Prim = []
     sensID = []
     with FieldLineService(ip_list) as service:
         sensors = service.load_sensors()
-        chassID = sensors.keys()
+        print(sensors)
+        chassID = list(sensors.keys())
 
         for c in chassID:
             for s in sensors[c]:
@@ -235,9 +238,10 @@ def ema_ref(data, a):
 #%%
 
 primInd = range(15)
-refInd = [15, 16, 17]	# need to get this from the jig.def file
-dfcInd = [0,3,12,15]
+faultySens = 13 # sensor 14 does not work
 
+refInd = [15, 16, 17]	# need to get this from the jig.def file
+dfcInd = [1,3,4,6,9,11,12,13]#range(15) #[0,3,12,14]
 coilID = 0 # -1 : don't energize coil; 0-36, energize coil corresponding to that number
 tCoilStart = 0 # in seconds
 
@@ -298,7 +302,15 @@ def main(ip_list, flg_restart, flg_cz, flg_fz, sName):
     # load rotation matrices
     rot_RefI, rot_RefJ, rot_RefK = loadRotMat_RefSens()  # load rot matrices
     primRotMat = loadRotMat_PrimSens()
-
+    
+    if faultySens:
+        print(primRotMat.shape)
+        primInd2 = range(0,16)
+        indx = list(np.setdiff1d(primInd2,np.array(faultySens)))
+        print(indx)
+        primRotMat = primRotMat[indx,:,:] 
+        print(primRotMat.shape)
+    
     # load additional setup parameters
     global calib, chassID
     chassID, sensID, chNames, calib = getInfo(ip_list)
@@ -314,6 +326,20 @@ def main(ip_list, flg_restart, flg_cz, flg_fz, sName):
         c, s = sensID[i]
         sensors[c].append(s)
 
+    if runDFC ==1:
+        cInd = [chassID[1]]
+        sensor_dict = {}
+        for c in cInd:
+            sensor_dict[c] = [None]*len(refInd)
+    else:
+        sensor_dict = {}
+        for c in chassID:
+            if c == chassID[0]:
+                sensor_dict[c] = [None]*len(dfcInd)
+            else:
+                sensor_dict[c] = [None]*len(refInd)
+        
+    print(sensor_dict)        
     """
     tmpCalib = calib.copy()
     if faultySens or refInd: # if list is not empty, calib array needs to be modified
@@ -325,8 +351,9 @@ def main(ip_list, flg_restart, flg_cz, flg_fz, sName):
     print('loaded sensor IDs:', sensID)    
     print('channel names', chNames)
     print('calibration values:', calib)
+    print('len calib ', len(calib) , 'len sens ', len(list(primInd)+refInd))
     print('sensors:', sensors)
-
+    print('chassis ID:', chassID)
     # get channel names
     chNames_Ref = []
     for sens in refInd:
@@ -364,8 +391,8 @@ def main(ip_list, flg_restart, flg_cz, flg_fz, sName):
             count += 1
             q.put(data)
 
-        #print("Press Enter")
-        #sys.stdin.read(1)
+        print("Press Enter")
+        sys.stdin.read(1)
 
         service.start_adc(0)
 
@@ -374,12 +401,15 @@ def main(ip_list, flg_restart, flg_cz, flg_fz, sName):
 
             done = False
             print(f"Doing fine zero {n}")
+            sensors = service.load_sensors()
             service.fine_zero_sensors(sensors,
                                         on_next=lambda c_id, s_id: print(f'sensor {c_id}:{s_id} finished fine zero'),
                                         on_error=lambda c_id, s_id, err: print(f'sensor {c_id}:{s_id} failed with {hex(err)}'),
                                         on_completed=lambda: call_done())
             while not done:
                 time.sleep(0.01)
+
+#            sys.stdin.read(1)
 
             # save zero coeffs every time we call fine_zero
 
@@ -450,9 +480,10 @@ def main(ip_list, flg_restart, flg_cz, flg_fz, sName):
                     bx_K, by_K = getCompField_Ref(rot_RefK, mav[0], 1)
 
                     if runDFC > 0:     # @@@ all references have to be on the same chassis
-                        sensor_dict = {1: [(sensID[refInd[0]][1], -bx_I, -by_I, None),
-                                           (sensID[refInd[1]][1], -bx_J, -by_J, None),
-                                           (sensID[refInd[2]][1], -bx_K, -by_K, None)]}
+                        sensor_dict[chassID[1]][0] = (sensID[refInd[0]][1], -bx_I, -by_I, None)
+                        sensor_dict[chassID[1]][1] = (sensID[refInd[1]][1], -bx_J, -by_J, None)
+                        sensor_dict[chassID[1]][2] = (sensID[refInd[2]][1], -bx_K, -by_K, None)
+                       # print(sensor_dict)
 
                     # 3.1.1 | save compensation values onto compRef matrix
                 
@@ -466,6 +497,7 @@ def main(ip_list, flg_restart, flg_cz, flg_fz, sName):
 
                 compPrim = np.zeros([len(primInd),3])
                 gradPrim = np.zeros(len(primInd))
+                cc = 0
                 for sens in range(len(primInd)):
 
                     bx, by, bz = getCompField_Prim(primRotMat[primInd[sens]], mav[0], 1)
@@ -473,17 +505,19 @@ def main(ip_list, flg_restart, flg_cz, flg_fz, sName):
                     gradPrim[sens] = rawDataPrim[sens] - bz # compute 1st order gradiometer
 
                     if runDFC > 1 and (primInd[sens] in dfcInd):
-                        print(primInd[sens], dfcSens)
-                        tmp = (primInd[sens],-bx,-by, None) # create tuple
-                        sensor_dict[chassID].append(tmp) # this is needed for the adjust_fields() call                  
-                    
+                        #print(primInd[sens])#, dfcSens)
+                        tmp = (primInd[sens]+1,-bx,-by, None) # create tuple
+                        sensor_dict[chassID[0]][cc] = tmp # this is needed for the adjust_fields() call                  
+                        cc +=1
+                
+                #print(sensor_dict)
                       
                 f_compPrim.append(compPrim)
                 f_gradPrim.append(gradPrim)
 
                 if runDFC > 0:
                     # 4 | call adjust_fields() 
-                                   
+                    #print('adjusting fields')               
                     service.adjust_fields(sensor_dict) # apply compensation field    
                    
                 if flgControlC:
@@ -494,13 +528,15 @@ def main(ip_list, flg_restart, flg_cz, flg_fz, sName):
             
             if runDFC > 0:
                 # 5.1 | reset adjust_fields()
-                if runDFC==1: # only reference sensors were adjusted
-                    arr = [1,2,3]		# @@@
+                if runDFC ==1:
+                    cInd = [chassID[1]]
                 else:
-                    arr = refInd + primInd	# @@@
-                for n in range(len(arr)):       # @@@
-                    sensor_dict[1][n] = (arr[n],0,0,0) # replace existing dictionary with all-zeros
+                    cInd = chassID
                 
+                for c in cInd:
+                    for i in range(len(sensor_dict[c])):
+                        sensor_dict[c][i] = (sensor_dict[c][i][0], 0, 0, 0)
+
                 service.adjust_fields(sensor_dict)  
                 print(sensor_dict)
 
@@ -522,8 +558,8 @@ def main(ip_list, flg_restart, flg_cz, flg_fz, sName):
         # 5.5 | Turn off all the sensors
         print("acquire service")
         with FieldLineService(ip_list) as service:
-            sensors = service.load_sensors()
-            service.turn_off_sensors(sensors)
+           # sensors = service.load_sensors()
+           # service.turn_off_sensors(sensors)
             service.stop_adc(0)
             #for s in sensID:
             #    f_coeffs.append(service.get_fields(chassID,s)) 
