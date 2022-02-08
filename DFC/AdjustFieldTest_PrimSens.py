@@ -41,7 +41,10 @@ def call_done():
     global done
     done = True
 
-
+class DimError(ValueError):
+    def __str__(self):
+        return 'dimension mismatch: dictInd and primInd are not of the same length'      
+    
 def restart_sensors(ip_list):
 
     global done
@@ -119,10 +122,14 @@ def getInfo(ip_list):
     - calibration values
     """
     print("[getInfo]")
+
+    if closedLoop:
+        suffix = ':50'
+    else:
+        suffix = ':28'
+
     ch_names = []
     calib = []
-#    calib_Ref = []
-#    calib_Prim = []
     sensID = []
     with FieldLineService(ip_list) as service:
         sensors = service.load_sensors()
@@ -237,11 +244,11 @@ def ema_ref(data, a):
 
 #%%
 
-primInd = range(15)
+primInd = range(15) # zero-based, EXCLUDING faulty sensor (if there is any)
 faultySens = 13 # sensor 14 does not work
-
 refInd = [15, 16, 17]	# need to get this from the jig.def file
-dfcInd = [1,3,4,6,9,11,12,13]#range(15) #[0,3,12,14]
+dfcInd = [1,3,4,6,9,11,12,13]#range(15) 
+
 coilID = 0 # -1 : don't energize coil; 0-36, energize coil corresponding to that number
 tCoilStart = 0 # in seconds
 
@@ -257,25 +264,21 @@ tau = 0.01  # 10 ms; moving average
 fs = 1000 # sampling rate
 a = np.e**(-1/(fs*tau)) # time decay
 
-if closedLoop:
-    suffix = ':50'
+# get dictionary index for adjust_fields()
+sArr = range(1,17) # this is the default sensor id per chassis. It is one-based
+if faultySens:
+    dictInd = np.setdiff1d(sArr, faultySens+1)
 else:
-    suffix = ':28'
+    dictInd = sArr
+try:
+    if len(dictInd)!= len(primInd):
+        raise DimError
+except DimError as err:
+    print(err)
 
-#toCorrect = False
-#if len(primSens) == len(dfcInd): # all sensors will run on dfc mode
-#    toCorrect = True
-
-
-#primInd = np.setdiff1d(np.array(primSens),np.array(refInd)) # all primary sensors but ref sensors
-#primInd = list(np.setdiff1d(primInd,np.array(faultySens))) # all primarysensors but ref and faulty sensors
-NrPrimSens = len(primInd)
-
-#if toCorrect:
-#    dfcInd = primInd.copy()
-
+# other variables
 count = 0
-mav = np.zeros([1,3])
+mav = np.zeros([1,len(refInd)])
 g = 1e9  # to convert data into nanotesla
 flgControlC = False
 onceCoil = False
@@ -326,6 +329,7 @@ def main(ip_list, flg_restart, flg_cz, flg_fz, sName):
         c, s = sensID[i]
         sensors[c].append(s)
 
+    # define sensor_dict for adjust_fields()
     if runDFC ==1:
         cInd = [chassID[1]]
         sensor_dict = {}
@@ -339,21 +343,14 @@ def main(ip_list, flg_restart, flg_cz, flg_fz, sName):
             else:
                 sensor_dict[c] = [None]*len(refInd)
         
-    print(sensor_dict)        
-    """
-    tmpCalib = calib.copy()
-    if faultySens or refInd: # if list is not empty, calib array needs to be modified
-        tmp = np.array(calib)
-        for ff in faultySens:
-            tmp = np.insert(tmp,ff-1,0)
-        calib = list(tmp)
-    """
+       
     print('loaded sensor IDs:', sensID)    
     print('channel names', chNames)
     print('calibration values:', calib)
     print('len calib ', len(calib) , 'len sens ', len(list(primInd)+refInd))
     print('sensors:', sensors)
     print('chassis ID:', chassID)
+
     # get channel names
     chNames_Ref = []
     for sens in refInd:
@@ -409,12 +406,8 @@ def main(ip_list, flg_restart, flg_cz, flg_fz, sName):
             while not done:
                 time.sleep(0.01)
 
-#            sys.stdin.read(1)
-
-            # save zero coeffs every time we call fine_zero
-
             global mav
-            mav = np.zeros([1,3])
+            mav = np.zeros([1,len(refInd)])
 
             print("setting dfc")
 
@@ -505,19 +498,15 @@ def main(ip_list, flg_restart, flg_cz, flg_fz, sName):
                     gradPrim[sens] = rawDataPrim[sens] - bz # compute 1st order gradiometer
 
                     if runDFC > 1 and (primInd[sens] in dfcInd):
-                        #print(primInd[sens])#, dfcSens)
-                        tmp = (primInd[sens]+1,-bx,-by, None) # create tuple
+                        tmp = (dictInd[sens],-bx,-by, None) # create tuple
                         sensor_dict[chassID[0]][cc] = tmp # this is needed for the adjust_fields() call                  
                         cc +=1
-                
-                #print(sensor_dict)
                       
                 f_compPrim.append(compPrim)
                 f_gradPrim.append(gradPrim)
 
                 if runDFC > 0:
-                    # 4 | call adjust_fields() 
-                    #print('adjusting fields')               
+                    # 4 | call adjust_fields()               
                     service.adjust_fields(sensor_dict) # apply compensation field    
                    
                 if flgControlC:
@@ -561,8 +550,8 @@ def main(ip_list, flg_restart, flg_cz, flg_fz, sName):
            # sensors = service.load_sensors()
            # service.turn_off_sensors(sensors)
             service.stop_adc(0)
-            #for s in sensID:
-            #    f_coeffs.append(service.get_fields(chassID,s)) 
+            for s in sensID:
+                f_coeffs.append(service.get_fields(chassID,s)) 
 
         # 6 | convert lists onto numpy arrays & save them
     
@@ -578,8 +567,14 @@ def main(ip_list, flg_restart, flg_cz, flg_fz, sName):
         f_coeffs = np.array(f_coeffs)
 
         print('saving data...')    
-
-        sPath = 'testData/' + prefix + sName
+        if len(dfcInd) != len(primInd):
+            suffix = '_'
+            for dd in range(len(dfcInd)):
+                suffix += str(dictInd[dfcInd[dd]]) + '-'
+            suffix = suffix[:-1]           
+        else:
+            suffix = ''
+        sPath = 'testData/' + prefix + sName + suffix
         chNs = chNames_Ref + chNames_Prim # add ADC name here
         npy2fif(sPath, f_raw_adc, f_raw_Ref, f_raw_Prim, chNs, calib)
 
@@ -608,7 +603,7 @@ def parse_arguments():
     parser.add_argument("-c", '--coarseZero', action='store_true', default=False, help="Flag to coarse zero sensors.")
     parser.add_argument("-f", '--fineZero', action='store_true', default=False, help="Flag to fine zero sensors.")
     parser.add_argument("-s", '--savingName', type=str, help="Path to save data.")
-    parser.add_argument("-d", '--runDFC', type=int, default=0, help="0, 1, or 2.")
+    parser.add_argument("-d", '--runDFC', type=int, default=0, help="0 (noDFC), 1 (refDFC), or 2 (primDFC).")
     args = parser.parse_args()
 
     stream_handler = logging.StreamHandler()
@@ -638,7 +633,7 @@ if __name__ == "__main__":
     elif runDFC == 1 :
         prefix = 'refDFC_'
     else:
-        prefix = 'allSensDFC_'
+        prefix = 'primDFC_'
 
     print("Connecting to IPs:", ip_list)
     print("flg_restart", flg_restart)
