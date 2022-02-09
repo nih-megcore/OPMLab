@@ -142,7 +142,9 @@ def getInfo(ip_list):
                 ch_names.append(service.hardware_state.get_sensor(c, s).name + suffix)
 
         for ch in ch_names:
-            calib.append(service.get_calibration_value(ch)['calibration'])
+            cv = service.get_calibration_value(ch)
+            if type(cv) == dict:
+                calib.append(cv['calibration'])
 
     return chassID, sensID, ch_names, calib
 
@@ -247,9 +249,9 @@ def ema_ref(data, a):
 primInd = range(15) # zero-based, EXCLUDING faulty sensor (if there is any)
 faultySens = 13 # sensor 14 does not work
 refInd = [15, 16, 17]	# need to get this from the jig.def file
-dfcInd = [1,3,4,6,9,11,12,13]#range(15) 
+dfcInd = range(15) #[1,3,4,6,9,11,12,13]#range(15) 
 
-coilID = 0 # -1 : don't energize coil; 0-36, energize coil corresponding to that number
+coilID = -1 # -1 : don't energize coil; 0-36, energize coil corresponding to that number
 tCoilStart = 0 # in seconds
 
 #runDFC = 0 # 0: don't run DFC; 1: run for Refs only; 2: run for primary and refs sensors
@@ -576,11 +578,11 @@ def main(ip_list, flg_restart, flg_cz, flg_fz, sName):
             suffix = ''
         sPath = 'testData/' + prefix + sName + suffix
         chNs = chNames_Ref + chNames_Prim # add ADC name here
-        npy2fif(sPath, f_raw_adc, f_raw_Ref, f_raw_Prim, chNs, calib)
+        
 
-        #np.save(sPath + '_rawRef', f_raw_Ref)
-        #np.save(sPath + '_rawPrim', f_raw_Prim)
-        #np.save(sPath + '_rawADC', f_raw_adc)
+        np.save(sPath + '_rawRef', f_raw_Ref)
+        np.save(sPath + '_rawPrim', f_raw_Prim)
+        np.save(sPath + '_rawADC', f_raw_adc)
         np.save(sPath + '_filt', f_filt)
         np.save(sPath + '_compRef', f_compRef)
         np.save(sPath + '_compPrim', f_compPrim)
@@ -589,8 +591,10 @@ def main(ip_list, flg_restart, flg_cz, flg_fz, sName):
         np.save(sPath + '_refInd', refInd)
         np.save(sPath + '_dfcInd', dfcInd)
         np.save(sPath + '_primInd', primInd)
-        np.save(sPath + '_chanNames', chNames)
+        np.save(sPath + '_chanNames', chNs)
         np.save(sPath + '_calib', calib)
+        
+        npy2fif(sPath, f_raw_adc, f_raw_Ref, f_raw_Prim, chNs, calib, f_compRef, f_compPrim, f_gradPrim)
 
         print('done.')
 

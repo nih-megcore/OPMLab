@@ -1,7 +1,20 @@
 import mne
 import numpy as np
 
-def npy2fif(sPath, rawADC, rawRef, rawPrim, chNames, calib, compRef, compPrim, grad):
+def npy2fif_new(fileName): 
+    print(fileName)
+    rawADC = np.load(fileName + '_rawADC.npy') # adc channel    
+    rawRef = np.load(fileName+ '_rawRef.npy') # raw reference sensor timecourses
+    rawPrim = np.load(fileName + '_rawPrim.npy') # raw primary sensor timecourses
+    calib = np.load(fileName+'_calib.npy')
+    compRef = np.load(fileName + '_compRef.npy') # compensation fields (bx,by) for the references
+    compPrim = np.load(fileName + '_compPrim.npy') # compensation fields (bx,by,bz) for primary sensors
+    grad = np.load(fileName +'_gradPrim.npy') # 1st order gradiometer for primary sensors
+    refInd = np.load(fileName +'_refInd.npy') # 1st order gradiometer for primary sensors
+    primInd = np.load(fileName +'_primInd.npy') # 1st order gradiometer for primary sensors
+    dfcInd = np.load(fileName +'_dfcInd.npy') # 1st order gradiometer for primary sensors
+    chNames = np.load(fileName +'_chanNames.npy') # 1st order gradiometer for primary sensors    
+    
     print("[npy2fif]")
     g = 1e9
     n_channels = len(chNames)
@@ -35,7 +48,7 @@ def npy2fif(sPath, rawADC, rawRef, rawPrim, chNames, calib, compRef, compPrim, g
     ch_types = ['stim'] + ['mag']*n_channels + ['mag']*n_channels*2 + ['grad']*(n_channels-nRef)
     print(len(ch_types))
     info = mne.create_info(ch_names, ch_types=ch_types, sfreq=sfreq)
-    info['description'] = sPath
+    info['description'] = fileName
     print(info)
 
     # add calibration information
@@ -70,5 +83,18 @@ def npy2fif(sPath, rawADC, rawRef, rawPrim, chNames, calib, compRef, compPrim, g
     dat = dat.T
     print(dat.shape)
 
+    """    
+    temp = np.zeros((1 + nRef + nPrim + (nRef + nPrim)*2 + nPrim, nSamp))
+
+    temp[0,:] = rawADC
+
+    for i in range(nRef):
+        temp[i+1,:] = rawRef[:,i+1] / g
+
+    for i in range(nPrim):
+        temp[i+1+nRef,:] = rawPrim[:,i] / g
+        
+    """
+
     raw = mne.io.RawArray(dat,info)
-    raw.save(sPath + '_raw.fif', overwrite=True)
+    raw.save(fileName +  '_new_raw.fif', overwrite=True)
