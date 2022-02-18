@@ -244,40 +244,32 @@ def getCompField_Prim(R, filt_f, g):
 
 #%%
 
-primInd = [1,2,3,5,6,7,9,10,11,12,13,14]# range(15) # zero-based, EXCLUDING faulty sensor (if there is any)
+primInd = range(15) # zero-based, EXCLUDING faulty sensor (if there is any)
 faultySens = 13 # sensor 14 does not work
-refInd = [0,4,8]# [15, 16, 17]	# need to get this from the jig.def file
-dfcInd = [1,2,3,5,6,7,9,10,11,12,13,14]#range(15) #[1,3,4,6,9,11,12,13]#range(15)
+refInd = [15, 16, 17]	# need to get this from the jig.def file
+dfcInd = range(15) #[1,3,4,6,9,11,12,13]#range(15)
 
 nRef = len(refInd)
 nPrim = len(primInd)
 nDfc = len(dfcInd)
 
-coilID = -1 # -1 : don't energize coil; 0-36, energize coil corresponding to that number
+coilID = 0 # -1 : don't energize coil; 0-36, energize coil corresponding to that number
 tCoilStart = 0 # in seconds
 
 #runDFC = 0 # 0: don't run DFC; 1: run for Refs only; 2: run for primary and refs sensors
 closedLoop = 1 # 0: open loop (OL); 1: closed loop
 
 # define dynamic field compensation parameters
-td = 10 # duration of applied compensation segment [in seconds]
+td = 30 # duration of applied compensation segment [in seconds]
 nResets = 0 # defines the # of repetitions of a fine_zero-dfc block. If 0, the block is repeated once.
 
 
 # Moving average time constant (s)
 tau = 0.01  # 10 ms
 
+fs = 1000 # sampling rate
 # Cutoff frequency for lowpass filter (Hz)
-cutoffFreq = 25
-
-# Create the filter to use.
-
-if fType == EMA:
-    filter_ref = ema(nRef, tau)
-elif fType == CHEBY2:
-    filter_ref = cheby2(nRef, cutoffFreq)
-elif fType == NOFILT:
-    filter_ref = nofilt(nRef)
+cutoffFreq = 22
 
 
 # get dictionary index for adjust_fields()
@@ -598,7 +590,7 @@ def main(ip_list, flg_restart, flg_cz, flg_fz, sName):
             suffix = suffix[:-1]
         else:
             suffix = ''
-        sPath = 'testData/' + prefix + sName + suffix
+        sPath = './testData/20220218/' + prefix + sName + suffix
         chNs = chNames_Ref + chNames_Prim # add ADC name here
 
 
@@ -665,10 +657,13 @@ if __name__ == "__main__":
 
     if filter == 'e':
         fType = EMA
+        filter_ref = ema(nRef, tau)
     elif filter == 'c':
         fType = CHEBY2
+        filter_ref = cheby2(nRef, cutoffFreq)
     elif filter == 'n':
         fType = NOFILT
+        filter_ref = nofilt(nRef)
     else:
         print(f"Unknown filter type {filter}.")
         sys.exit(1)

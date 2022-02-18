@@ -127,8 +127,11 @@ def getInfo(ip_list):
             for s in sensors[c]:
                 sensID.append((c, s))
                 ch_names.append(service.hardware_state.get_sensor(c, s).name + suffix)
-
-        for ch in ch_names:
+        print(sensID)
+        print(ch_names)
+        print(service.get_calibration_value(ch_names[0]))
+        for ch in ch_names[:len(refInd)+len(primInd)]:
+            print(ch)
             calib.append(service.get_calibration_value(ch)['calibration'])
 
     return chassID, sensID, ch_names, calib
@@ -138,7 +141,7 @@ def getInfo(ip_list):
 #%%
 
 primInd = range(15) # zero-based, EXCLUDING faulty sensor (if there is any)
-faultySens = 13 # sensor 14 does not work
+faultySens = [13] # sensor 14 does not work
 refInd = [15, 16, 17]	# need to get this from the jig.def file
 
 closedLoop = 1 # 0: open loop (OL); 1: closed loop
@@ -166,7 +169,7 @@ def main(ip_list, flg_restart, flg_cz, flg_fz, amp, freq, coilType,td):
        
     print('loaded sensor IDs:', sensID)    
     print('channel names', chNames)
-    print('len calib ', len(calib) , 'len sens ', len(list(primInd)+refInd))
+    print('calib ', calib)
     print('chassis ID:', chassID)
 
     # get channel names
@@ -295,7 +298,7 @@ def main(ip_list, flg_restart, flg_cz, flg_fz, amp, freq, coilType,td):
                 f_coeffs = np.array(f_coeffs)
 
                 
-                sPath = 'crossTalkData/chass' + str(sensID[ss][0]) + '_sens' + str(sensID[ss][1]) + '_coil' + coils[coilType]
+                sPath = './crossTalkData/20220218/chass' + str(sensID[ss][0]) + '_sens' + str(sensID[ss][1]) + '_coil' + coils[coilType] + '_' + str(freq) + 'Hz_' + str(amp) + 'nT'
        
                 chNs = chNames_Ref + chNames_Prim
                 npy2fif_raw(sPath, f_raw_Ref, f_raw_Prim, chNs, calib)
