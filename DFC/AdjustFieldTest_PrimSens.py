@@ -17,7 +17,7 @@ import copy
 from numato import numato
 from npy2fif import npy2fif
 from jig import getJigDef
-from filters import ema, cheby2
+from filters import ema, cheby2, nofilt
 
 #%%
 
@@ -50,7 +50,7 @@ def call_done():
 
 EMA = 1
 CHEBY2 = 2
-
+NOFILT = 3
 
 class DimError(ValueError):
     def __str__(self):
@@ -276,6 +276,8 @@ if fType == EMA:
     filter_ref = ema(nRef, tau)
 elif fType == CHEBY2:
     filter_ref = cheby2(nRef, cutoffFreq)
+elif fType == NOFILT:
+    filter_ref = nofilt(nRef)
 
 
 # get dictionary index for adjust_fields()
@@ -386,7 +388,7 @@ def main(ip_list, flg_restart, flg_cz, flg_fz, sName):
     f_raw_Ref = []
     f_raw_Prim = []
     f_raw_adc = []
-    f_filt =[]
+    f_filt = []
     f_compRef = []
     f_compPrim = []
     f_gradPrim = []
@@ -628,7 +630,7 @@ def parse_arguments():
     parser.add_argument("-f", '--fineZero', action='store_true', default=False, help="Flag to fine zero sensors.")
     parser.add_argument("-s", '--savingName', type=str, help="Path to save data.")
     parser.add_argument("-d", '--runDFC', type=int, default=0, help="0 (noDFC), 1 (refDFC), or 2 (primDFC).")
-    parser.add_argument("-F", '--filter', type=str, default='e', help="e (EMA) or c (Chebyshev).")
+    parser.add_argument("-F", '--filter', type=str, default='e', help="e (EMA), c (Chebyshev), or n (nofilt).")
     args = parser.parse_args()
 
     stream_handler = logging.StreamHandler()
@@ -665,6 +667,8 @@ if __name__ == "__main__":
         fType = EMA
     elif filter == 'c':
         fType = CHEBY2
+    elif filter == 'n':
+        fType = NOFILT
     else:
         print(f"Unknown filter type {filter}.")
         sys.exit(1)

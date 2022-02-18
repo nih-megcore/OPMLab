@@ -1,10 +1,28 @@
 #! /usr/bin/env python
 
+import sys
 import numpy as np
 from numpy import sin, pi
 import matplotlib.pyplot as plt
 from time import time
-from filters import cheby2
+from filters import filt_p, cheby2
+from param import Param, getParam
+
+p = Param()
+p.registryMerge(filt_p)
+
+try:
+    p = getParam(p)
+except Exception as msg:
+    print(msg)
+    sys.exit(1)
+
+print('Verbose is', p.Verbose)
+print('ParamFile is', p.ParamFile)
+print('Filter is', p.FilterType)
+print('args:', p.args)
+
+exit()
 
 # Make a signal that is the sum of two sine waves sampled at 1 kHz.
 
