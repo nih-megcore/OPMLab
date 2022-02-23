@@ -12,21 +12,50 @@ from param import Param, propObj
 
 # Create a custom property object to parse the filter spec.
 
-# THIS ISN'T USED YET
-
-# Because the filter specification is complex, I might change how it is parsed to
-# use a format such as
+# Because the filter specification is complex, we use a
+# format such as:
 #
 #   cheby2 cutoff=25 order=10 dB=80
 # or
 #   ema tau=.01
-#
-# This would remove the clunky "option" processing and allow other fields, and also
-# make it simpler to specify on the command line. Option processing would stop
-# if something is seen that doesn't have an '='.
 
 class Filter(propObj):
     "Store a filter specification."
+
+    def optDict(self, opts):
+        """Parse options like NAME=VAL, return a dict. Names
+        are converted to lower case, and option processing
+        stops if an argument doesn't have an '='."""
+
+        def matchFloat(name):
+            for var in ['tau', 'cutoff', 'db']:
+                if var.startswith(name):
+                    return var                  # return the full name
+            return None
+
+        def matchInt(name):
+            for var in ['order']:
+                if var.startswith(name):
+                    return var
+            return None
+
+        d = {}
+        for s in opts:
+            if '=' in s:
+                name, val = s.split('=')
+                name = name.lower()
+                var = matchFloat(name):
+                if var:
+                    d[var] = float(val)
+                else:
+                    var = matchInt(name):
+                    if var:
+                        d[var] = int(val)
+                    else:
+                        raise ValueError(f"{self._name}: unknown option {name}")
+            else:
+                break
+            return d
 
     def _set(self, p, val):
         try:
@@ -40,15 +69,14 @@ class Filter(propObj):
                 name = 'n'
             else:
                 raise
+            d = self.optDict(val[1:])
             if name == 'e':
-                tau = float(val[1])
-                r = (name, tau)
+                r = (name, d.get('tau', .01))
             elif name == 'c':
-                cutoff = float(val[1])
-                order = None                # Letting order default works best
-                if len(val) > 2:            # in a file, or if the filter spec
-                    order = int(val[2])     # is the last thing on the command line
-                r = (name, cutoff, order)
+                cutoff = d.get('cutoff')
+                order = d.get('order', 10)
+                dB = d.get('db', 80)
+                r = (name, cutoff, order, dB)
             elif name == 'n':
                 r = (name,)
         except:
@@ -57,19 +85,29 @@ class Filter(propObj):
         p.set(self._name, r)
         return len(r)
 
+    def _print(self, name, t, file):
+        print(self._name, end = ' ', file = file)
+        name = t[0]
+        if name == 'e':
+            print("ema tau={t[1]}", file = file)
+        elif name == 'c':
+            print("cheby2 cutoff={t[1]} order={t[2]} dB={t[3]}", file = file)
+        elif name == 'n':
+            print("nofilt", file = file)
+
+
 # Options (command line or parameter file) used to specify the filter.
 
 filt_p = Param()
-filt_p.mkDesc('FilterType', 'f', Filter(), arghelp="FILTERSPEC", default=('e', .01),
+filt_p.mkDesc('FilterType', 'F', Filter(), arghelp="FILTERSPEC", default=('e', .01),
     help="""Specify the filter and filter parameters to use.
         FILTERSPEC specifies the filter type as follows
-            EMA TAU               -- Exponential moving average filter with time constant TAU
-            CHEBY2 CUTOFF [ORDER] -- Chebyshev type II, CUTOFF is in Hz, ORDER is an int (default 10)
-            NOFILT                -- a filter that does nothing
-        The filter names may be lower case and abbreviated.""")
-
-# END UNSED PART
-
+            ema tau=TAU           -- Exponential moving average filter with time constant TAU.
+            cheby2 VAR=VAL ...    -- Chebyshev type II, VAR may be order, cutoff, or dB,
+                                     cutoff is in Hz, order is an int (default 10), dB is
+                                     the attenuation at the cutoff, deault 80.
+            nofilt                -- A filter that does nothing.
+        The filter and var names may be either case and abbreviated.""")
 
 class nofilt:
 

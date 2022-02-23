@@ -20,8 +20,8 @@ def getStdRegistry():
     p.mkDesc('ParamFile', 'p', Filename(mustExist = True, ext = "param"),
                 env = "param", arghelp = "PFILE",
                 help = 'Parameter file name (optionally ending\nin ".param").')
-    ##p.mkDesc('LogFile', ...)
-
+    p.mkDesc('logName', None, Filename(), arghelp = "LOGFILE",
+                help = "log messages to LOGFILE if Verbose is set.")
     return p
 
 # Normally, you add more parameters from other registries to p.

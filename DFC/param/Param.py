@@ -1,4 +1,5 @@
 import os, sys
+import logging
 from time import asctime
 from .prop import propObj
 
@@ -13,7 +14,7 @@ class Param(object):
         self.opts = {}          # -X option flag descriptors
         self.env = {}           # environment variable names
         self.paramList = []     # names of all parameters that were specified
-        self.logName = None     # log messages go to stdout
+        self.aCopy = self.args  # used for logParam()
 
     def usage(self, msg, progName = os.path.basename(sys.argv[0])):
         "Set the usage (one line command syntax) message"
@@ -117,7 +118,6 @@ class Param(object):
         #    p = propObj(default = d)
         name = desc.get('name')
         p._setName(name)
-        ##setattr(Param, p._name, property(p._get, p._set, p._del))
 
     def _addDesc(self, desc, doProp = False):
         """Add this descriptor. Update the shortcut lists. When doProp
@@ -165,7 +165,7 @@ class Param(object):
             print(f"option '-{opt}' is not recognized")
         return p
 
-    def propset(self, p, args):
+    def propset(self, p, args, **kw):
         "Set the parameter's property object"
 
         # returns the number of arguments consumed (from _set)
@@ -175,13 +175,16 @@ class Param(object):
         if name[0] == '%':      # magic parameter (doesn't appear in help)
             return prop._set(self, args)
 
-        self.paramList.append(name) # keep track of all specified parameters
+        if name not in self.paramList:
+            self.paramList.append(name) # keep track of all specified parameters
 
         # If the parameter's value is already set, don't override, unless it's
         # a listValue, in which case it will append.
 
         oldval = self.values.get(name)
         if oldval is None or p['listValue']:
+            if p['listValue']:
+                return prop._set(self, args, **kw)
             return prop._set(self, args)
 
         return 0
@@ -223,7 +226,7 @@ class Param(object):
                 p = self.getDescOpt(opt)
 
             if p:
-                n = self.propset(p, args[1:])   # all the rest of the args
+                n = self.propset(p, args[1:], cmdLine=True) # all the rest of the args
                 args = args[n+1:]   # remove the ones we used
             else:
                 # stop processing the argument list if
@@ -244,7 +247,7 @@ class Param(object):
     def parseFile(self, filename):
         "Read lines of the file, parse parameters"
         ll = open(filename).readlines()
-        """
+        """ # is this needed for %include?
         try:
             ll = open(filename).readlines()
         except FileNotFoundError:
@@ -300,19 +303,22 @@ class Param(object):
         "Set the log file name"
         self.logName = name
 
-    def log(self, s):
-        """Print a log message, if Verbose is set. If logFile(name) has
-        been called, the message will also be appended to the file."""
+    def enableLogging(self):
+        "Create a handler for the logging module that uses self.log()."
+        logging.basicConfig(handlers = [loggingHandler(self)], level = 0)
 
-        p = self
-        if p.Verbose:
+    def log(self, s):
+        """Print a log message, if Verbose is set. If self.logName has
+        been set, the message will also be appended to the file."""
+
+        if self.Verbose:
             print(s)
-            if p.logName is not None:
-                with open(p.logName, "a") as f:
+            if self.logName is not None:
+                with open(self.logName, "a") as f:
                     print(s, file = f)
 
     def logParam(self, name = None, mode = "a"):
-        "Append a list of all the parameters and their values to a logfile"
+        "Append a list of all the parameters and their values to a logfile."
 
         # default name
         if name is None:
@@ -322,21 +328,19 @@ class Param(object):
 
         with open(name, mode) as f:
             if mode == "a":
-                print('\n', file = f)
+                print(file = f)
             print(asctime(), file = f)
             print(self.progName, end = ' ', file = f)
-            for a in self.args:
+            for a in self.aCopy:
                 print(a, end = ' ', file = f)
             print('\n***', file = f)
             for k in self.paramList:
                 v = self.values[k]
-                if type(v) == list: ## get(self.listValue): @@@ ?
-                    for m in v:
-                        # @@@ should be multiple k's with one value each
-                        print(k, end = ' ', file = f)
-                        for x in m:
-                            print(x, end = ' ', file = f)
-                        print(file = f)
+
+                # if the propObj has a _print() method, use that
+                prop = self.getDesc(k)['prop']
+                if hasattr(prop, '_print'):
+                    prop._print(k, v, file = f)
                 else:
                     print(k, end = ' ', file = f)
                     if type(v) == tuple:
@@ -346,3 +350,15 @@ class Param(object):
                         print(v, end = '', file = f)
                     print(file = f)
             print('***', file = f)
+
+class loggingHandler(logging.Handler):
+
+    def __init__(self, p):
+        self.p = p
+        self.setFormatter(
+            logging.Formatter("%(filename)s:%(lineno)d %(levelname)s %(message)s"))
+        self.setLevel(logging.DEBUG if p.Verbose else logging.ERROR)
+
+    def handle(self, record):
+        s = self.format(record)
+        self.p.log(s)

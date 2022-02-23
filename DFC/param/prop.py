@@ -33,10 +33,17 @@ class propObj(object):
         pass
 
 class Bool(propObj):
-    "A Bool() just stores True."
+    "Store a boolean, defaults to True."
 
     def _set(self, p, val):
-        p.set(self._name, True)
+        v = True
+        if len(val) >= 1:
+            s = val[0].lower()
+            if s[0] == 'f':
+                v = False
+            elif s[0] != 't':
+                raise ValueError(f"{self._name}: invalid bool '{val[0]}'")
+        p.set(self._name, v)
         return 0
 
 class Str(propObj):
@@ -188,68 +195,3 @@ class Dirname(propObj):
                 raise ValueError(f"{self._name}: directory not found '{name}'")
         p.set(self._name, name)
         return 1
-
-"""
-# --marker mark t0 t1 ...
-
-class Marker(propObj):
-
-    def _set(self, p, val):
-        if type(val) == str:
-            val = val.split()
-        if type(val) != list or len(val) < 3:
-            raise ValueError("usage: {} mark t0 t1 [sumflag [covname]]".format(self._name))
-        args = val
-
-        mList = p.get(self._name)
-        if mList is None:
-            mList = []
-            p.set(self._name, mList)    # listValue
-
-        try:
-            mark = args[0]
-            t0 = float(args[1])
-            t1 = float(args[2])
-            sumflag = True
-            n = 0
-            if len(args) > 3:
-                s = args[3].lower()
-                if s[0] == 't' or s[0] == 'f':
-                    sumflag = s[0] == 't'
-                    n = 1
-            covname = mark
-            if n == 1 and len(args) > 4:
-                a = args[4]
-                if a[0] != '-':     # if next arg is of the form "-X", skip it
-                    covname = a
-        except:
-            raise ValueError("{}: can't parse mark {}".format(self._name, mark))
-
-        val = (mark, t0, t1, sumflag, covname)
-        mList.append(val)
-        p.set(self._name, mList)
-
-# --Model SingleSphere x y z|MultiSphere|Nolte [order]
-
-class Model(propObj):
-
-    def _set(self, p, val):
-        if type(val) == str:
-            val = val.split()
-        if type(val) != list or len(val) < 1:
-            raise ValueError("usage: {} SingleSphere x y z|MultiSphere|Nolte [order]".format(self._name))
-        args = val
-        name = args[0].lower()
-        if 'singlesphere'.startswith(name):
-            if len(args) < 4:
-                raise ValueError("not enough arguments for SingleSphere")
-            val = 'Single', int(args[1]), int(args[2]), int(args[3])
-        elif 'multisphere'.startswith(name):
-            val = 'MultiSphere',
-        elif 'nolte'.startswith(name):
-            val = 'Nolte',
-            if len(args) == 2:
-                val = 'Nolte', int(args[1])
-
-        p.set(self._name, val)          # the value is always a tuple
-"""

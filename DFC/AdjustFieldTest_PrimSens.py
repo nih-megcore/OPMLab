@@ -6,7 +6,6 @@ from fieldline_api.pycore.sensor import SensorInfo, ChannelInfo
 
 import logging
 import threading
-import argparse
 import queue
 import time
 import sys
@@ -16,8 +15,9 @@ import signal
 import copy
 from numato import numato
 from npy2fif import npy2fif
-from jig import getJigDef
-from filters import ema, cheby2, nofilt
+from param import Param, getParam, Str, Bool, Int
+from filters import ema, cheby2, nofilt, filt_p
+from sensors import getSensorInfo, sens_p
 
 #%%
 
@@ -46,15 +46,10 @@ def call_done():
     global done
     done = True
 
-# Filter types
-
-EMA = 1
-CHEBY2 = 2
-NOFILT = 3
-
 class DimError(ValueError):
     def __str__(self):
         return 'dimension mismatch: dictInd and primInd are not of the same length'
+
 
 def restart_sensors(ip_list):
 
@@ -125,41 +120,6 @@ def fine_zero(ip_list):
     except ConnectionError as e:
         logging.error("Failed to connect: %s" % str(e))
 
-def getInfo(ip_list):
-    """
-    this function grabs basic information from the setup:
-    - chassis ID
-    - channel names (without the open loop [:28]/closed loop [:50] indicator)
-    - calibration values
-    """
-    print("[getInfo]")
-
-    if closedLoop:
-        suffix = ':50'
-    else:
-        suffix = ':28'
-
-    ch_names = []
-    calib = []
-    sensID = []
-    with FieldLineService(ip_list) as service:
-        sensors = service.load_sensors()
-        print(sensors)
-        chassID = list(sensors.keys())
-
-        for c in chassID:
-            for s in sensors[c]:
-                sensID.append((c, s))
-                ch_names.append(service.hardware_state.get_sensor(c, s).name + suffix)
-
-        for ch in ch_names:
-            cv = service.get_calibration_value(ch)
-            if type(cv) == dict:
-                calib.append(cv['calibration'])
-
-    return chassID, sensID, ch_names, calib
-
-
 
 def loadRotMat_RefSens():
     """
@@ -199,7 +159,6 @@ def getCompField_Ref(R, filt_f, g):
     return bx, by
 
 
-
 def loadRotMat_PrimSens():
     """
     load pre-computed rotation matrices for primary sensors
@@ -225,6 +184,7 @@ def loadRotMat_PrimSens():
 
     return primRotMat
 
+
 def getCompField_Prim(R, filt_f, g):
     """
     compute compensation fields for transverse coils of reference sensors
@@ -240,7 +200,6 @@ def getCompField_Prim(R, filt_f, g):
     bz = compensat_f[2]  # compensation to be applied on z coil
 
     return bx, by, bz
-
 
 #%%
 
@@ -269,7 +228,7 @@ tau = 0.01  # 10 ms
 
 fs = 1000 # sampling rate
 # Cutoff frequency for lowpass filter (Hz)
-cutoffFreq = 22
+#cutoffFreq = 22
 
 
 # get dictionary index for adjust_fields()
@@ -323,7 +282,7 @@ def main(ip_list, flg_restart, flg_cz, flg_fz, sName):
 
     # load additional setup parameters
     global calib, chassID, sensID
-    chassID, sensID, chNames, calib = getInfo(ip_list)
+    chassID, sensID, chNames, calib = getSensorInfo(ip_list)
 
     # sensors we will use
     sensors = {}
@@ -612,6 +571,7 @@ def main(ip_list, flg_restart, flg_cz, flg_fz, sName):
 
         print('done.')
 
+"""
 def parse_arguments():
     parser = argparse.ArgumentParser()
 
@@ -634,35 +594,72 @@ def parse_arguments():
     )
 
     return args
+"""
+
+def parse_arguments():
+
+    # Load a standard parser, add some extra parameters, and merge in the special parsers.
+
+    p = Param()
+
+    p.register("--ipList", 'i', Str(), help="Comma separated list of IPs")
+    p.register("--restart", 'r', Bool(), help="Flag to restart sensors.", default=False)
+    p.register("--coarseZero", 'c', Bool(), help="Flag to coarse zero sensors.", default=False)
+    p.register("--fineZero", 'f', Bool(), help="Flag to fine zero sensors.", default=False)
+    p.register("--savingName", 's', Str(), arghelp="PATH", help="Path to save data.")
+    p.register("--runDFC", 'd', Int(), default=0, arghelp="N", help="0 (noDFC), 1 (refDFC), or 2 (primDFC).")
+
+    p.registryMerge(sens_p)     # sensor list parameters
+    p.registryMerge(filt_p)     # filter parameters
+
+    try:
+        p = getParam(p)
+    except Exception as e:
+        print(e)
+        sys.exit(1)
+
+    p.enableLogging()
+    p.logParam()
+
+    return p
 
 if __name__ == "__main__":
 
     # parse arguments
-    args = parse_arguments()
+    p = parse_arguments()
 
-    ip_list = args.ip
-    flg_restart = args.restart
-    flg_cz = args.coarseZero
-    flg_fz = args.fineZero
-    sName = args.savingName
-    runDFC = args.runDFC
-    filter = args.filter
+    if not p.ipList:
+        p.err("--ip is required")
+    ip_list = p.ipList.split(',')
 
-    if runDFC == 0 :
+    flg_restart = p.restart
+    flg_cz = p.coarseZero
+    flg_fz = p.fineZero
+    sName = p.savingName
+    runDFC = p.runDFC
+    filter = p.FilterType
+    refList = p.RefList
+    primList = p.PrimList
+    ADCList = p.ADCList
+
+    nRef = len(refList)
+    nPrim = len(primList)
+    nADC = len(ADCList)
+
+    if p.runDFC == 0:
         prefix = 'noDFC_'
-    elif runDFC == 1 :
+    elif p.runDFC == 1:
         prefix = 'refDFC_'
     else:
         prefix = 'primDFC_'
 
-    if filter == 'e':
-        fType = EMA
+    if filter[0] == 'e':
+        tau = filter[1]
         filter_ref = ema(nRef, tau)
-    elif filter == 'c':
-        fType = CHEBY2
-        filter_ref = cheby2(nRef, cutoffFreq)
-    elif filter == 'n':
-        fType = NOFILT
+    elif filter[0] == 'c':
+        cutoffFreq, order, dB = filter[1:]
+        filter_ref = cheby2(nRef, cutoffFreq, N=order, dB=dB)
+    elif filter[0] == 'n':
         filter_ref = nofilt(nRef)
     else:
         print(f"Unknown filter type {filter}.")
@@ -673,7 +670,7 @@ if __name__ == "__main__":
     print("flg_cz", flg_cz)
     print("flg_fz", flg_fz)
     print("sName ", sName)
-    print("rundfc", runDFC)
+    print("runDFC", runDFC)
 
     main(ip_list, flg_restart, flg_cz, flg_fz, sName)
 
