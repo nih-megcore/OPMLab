@@ -35,9 +35,9 @@ def getSensorInfo(ip_list, closedLoop=True):
             cv = service.get_calibration_value(ch)
             if type(cv) == dict:
                 calib.append(cv['calibration'])
-            else:
-                print(ch, "has no calibration value")
-                calib.append(1)
+
+        if len(calib) == 0:
+            logging.warn("no calibration values")
 
     return chassID, sensID, ch_names, calib
 
@@ -63,7 +63,7 @@ class SList(propObj):
             l = v.split(',')
             for name in l:
                 name = name.strip()
-                if len(name) == 0:  # val might have "00:00, 01:00, ..."
+                if len(name) == 0:  # val might have "00:01, 00:02, ..."
                     continue
                 vals.append(name)
 
@@ -113,3 +113,32 @@ sens_p.mkDesc('ADCList', None, SList(), listValue=True, arghelp="SENSORLIST",
 #def writeJigDef(p):
 #    "Given the parameter object with the sensor lists, write the jig.def file."
 #    pass
+
+def slist2clist(slist):
+    "Return a list of the chassis numbers found in a sensor list"
+
+    l = []
+    for c, s in slist:
+        if c not in l:
+            l.append(c)
+
+    return l
+
+def getIndArrays(sensID, refList, primList):
+    """Return a list of the (c, s) pairs we are actually using, from sensID,
+    along with the reference and primary indices into sensID."""
+
+    slist = refList + primList
+    for c, s in slist:
+        if (c, s) not in sensID:
+            raise RuntimeError(f"The specified sensor {c:02d}:{s:02d} is not available.")
+
+    refInd = []
+    for c, s in refList:
+        refInd.append(sensID.index((c, s)))
+
+    primInd = []
+    for c, s in refList:
+        primInd.append(sensID.index((c, s)))
+
+    return slist, refInd, primInd
