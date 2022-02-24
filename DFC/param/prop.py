@@ -39,10 +39,11 @@ class Bool(propObj):
         v = True
         if len(val) >= 1:
             s = val[0].lower()
-            if s[0] == 'f':
-                v = False
-            elif s[0] != 't':
-                raise ValueError(f"{self._name}: invalid bool '{val[0]}'")
+            if s[0] != '-':
+                if s[0] == 'f':
+                    v = False
+                elif s[0] != 't':
+                    raise ValueError(f"{self._name}: invalid bool '{val[0]}'")
         p.set(self._name, v)
         return 0
 

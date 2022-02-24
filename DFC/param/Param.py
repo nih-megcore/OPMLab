@@ -305,7 +305,8 @@ class Param(object):
 
     def enableLogging(self):
         "Create a handler for the logging module that uses self.log()."
-        logging.basicConfig(handlers = [loggingHandler(self)], level = 0)
+        logging.basicConfig(handlers = [loggingHandler(self)],
+                            level = logging.DEBUG if self.Verbose else logging.ERROR)
 
     def log(self, s):
         """Print a log message, if Verbose is set. If self.logName has

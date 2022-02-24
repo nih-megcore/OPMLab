@@ -44,11 +44,11 @@ class Filter(propObj):
             if '=' in s:
                 name, val = s.split('=')
                 name = name.lower()
-                var = matchFloat(name):
+                var = matchFloat(name)
                 if var:
                     d[var] = float(val)
                 else:
-                    var = matchInt(name):
+                    var = matchInt(name)
                     if var:
                         d[var] = int(val)
                     else:
@@ -89,9 +89,9 @@ class Filter(propObj):
         print(self._name, end = ' ', file = file)
         name = t[0]
         if name == 'e':
-            print("ema tau={t[1]}", file = file)
+            print(f"ema tau={t[1]}", file = file)
         elif name == 'c':
-            print("cheby2 cutoff={t[1]} order={t[2]} dB={t[3]}", file = file)
+            print(f"cheby2 cutoff={t[1]} order={t[2]} dB={t[3]}", file = file)
         elif name == 'n':
             print("nofilt", file = file)
 
@@ -101,13 +101,15 @@ class Filter(propObj):
 filt_p = Param()
 filt_p.mkDesc('FilterType', 'F', Filter(), arghelp="FILTERSPEC", default=('e', .01),
     help="""Specify the filter and filter parameters to use.
-        FILTERSPEC specifies the filter type as follows
-            ema tau=TAU           -- Exponential moving average filter with time constant TAU.
-            cheby2 VAR=VAL ...    -- Chebyshev type II, VAR may be order, cutoff, or dB,
-                                     cutoff is in Hz, order is an int (default 10), dB is
-                                     the attenuation at the cutoff, deault 80.
-            nofilt                -- A filter that does nothing.
-        The filter and var names may be either case and abbreviated.""")
+FILTERSPEC specifies the filter type as follows:
+ema tau=TAU           Exponential moving average filter
+                      with time constant TAU.
+cheby2 VAR=VAL ...    Chebyshev type II, VAR may be order,
+                      cutoff, or dB. cutoff is in Hz,
+                      order is an int (default 10), dB is the
+                      attenuation at the cutoff, deault 80.
+nofilt                A filter that does nothing.
+The filter and var names may be either case and abbreviated.""")
 
 class nofilt:
 

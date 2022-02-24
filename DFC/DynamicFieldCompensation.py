@@ -219,6 +219,7 @@ fs = 1000 # sampling rate
 
 # get dictionary index for adjust_fields()
 sArr = range(1,17) # this is the default sensor id per chassis. It is one-based
+"""
 if faultySens:
     dictInd = np.setdiff1d(sArr, faultySens+1)
 else:
@@ -228,8 +229,10 @@ try:
         raise DimError
 except DimError as err:
     print(err)
+"""
 
 # other variables
+count = 0
 g = 1e9  # to convert data into nanotesla
 
 
@@ -326,7 +329,6 @@ def main(ip_list, flg_restart, flg_cz, flg_fz, sName):
     with FieldLineService(ip_list) as service:
         q = queue.Queue(10) # queue is needed to access bz data outside the getData callback
 
-        count = 0
         def getData(data):
             """
             This function is a callback to read the data structure in the stream.
@@ -348,7 +350,7 @@ def main(ip_list, flg_restart, flg_cz, flg_fz, sName):
 
             done = False
             print(f"Doing fine zero {n}")
-            sensors = sensID
+            sensors = service.load_sensors()
             service.fine_zero_sensors(sensors,
                                         on_next=lambda c_id, s_id: print(f'sensor {c_id}:{s_id} finished fine zero'),
                                         on_error=lambda c_id, s_id, err: print(f'sensor {c_id}:{s_id} failed with {hex(err)}'),
@@ -567,13 +569,13 @@ def parse_arguments():
 
     p = Param()
 
-    p.register("--ipList", 'i', Str(), help="Comma separated list of IPs")
-    p.register("--restart", 'r', Bool(), help="Flag to restart sensors.", default=False)
-    p.register("--coarseZero", 'c', Bool(), help="Flag to coarse zero sensors.", default=False)
-    p.register("--fineZero", 'f', Bool(), help="Flag to fine zero sensors.", default=False)
-    p.register("--savingName", 's', Str(), arghelp="PATH", help="Path to save data.")
-    p.register("--runDFC", 'd', Int(), default=0, arghelp="N", help="0 (noDFC, default), 1 (refDFC), or 2 (primDFC).")
-    p.register("--coilID", 'C', Int(), default=-1, arghelp="N", help="Calibrator coil id. Default none (-1).")
+    p.register("ipList", 'i', Str(), help="Comma separated list of IPs")
+    p.register("restart", 'r', Bool(), help="Flag to restart sensors.", default=False)
+    p.register("coarseZero", 'c', Bool(), help="Flag to coarse zero sensors.", default=False)
+    p.register("fineZero", 'f', Bool(), help="Flag to fine zero sensors.", default=False)
+    p.register("savingName", 's', Str(), arghelp="PATH", help="Path to save data.")
+    p.register("runDFC", 'd', Int(), default=0, arghelp="N", help="0 (noDFC, default), 1 (refDFC), or 2 (primDFC).")
+    p.register("coilID", 'C', Int(), default=-1, arghelp="N", help="Calibrator coil id. Default none (-1).")
 
     p.registryMerge(sens_p)     # sensor list parameters
     p.registryMerge(filt_p)     # filter parameters

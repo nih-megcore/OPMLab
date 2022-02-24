@@ -1,6 +1,7 @@
 """This module contains functions for dealing with groups of sensors.
 In particular, using parameter files for specifying such groups."""
 
+import logging
 from fieldline_api.fieldline_service import FieldLineService
 from param import Param, propObj, Filename
 
@@ -138,7 +139,7 @@ def getIndArrays(sensID, refList, primList):
         refInd.append(sensID.index((c, s)))
 
     primInd = []
-    for c, s in refList:
+    for c, s in primList:
         primInd.append(sensID.index((c, s)))
 
     return slist, refInd, primInd
