@@ -348,6 +348,15 @@ def main(ip_list, flg_restart, flg_cz, flg_fz, sName):
         global done
         for n in range(nResets+1): # this block does fine zeroing before the dfc is started
 
+            # Get ready to energize the coil as quickly as possible.
+
+            if coilID >= 0:
+                coil.preactivate(coilID)
+
+            rawDataRef = np.zeros(nRef)
+            rawDataPrim = np.zeros(nPrim)
+            adcData = np.zeros(nADC)
+
             done = False
             print(f"Doing fine zero {n}")
             sensors = service.load_sensors()
@@ -356,27 +365,22 @@ def main(ip_list, flg_restart, flg_cz, flg_fz, sName):
                                         on_error=lambda c_id, s_id, err: print(f'sensor {c_id}:{s_id} failed with {hex(err)}'),
                                         on_completed=lambda: call_done())
             while not done:
-                time.sleep(0.01)
+                time.sleep(0.002)
 
-            print("setting dfc")
+            service.read_data(getData)  # begin collecting data
 
             init = time.time()
             started = time.time()-init
             print('tstart: ' + str(started*fs))
 
-            service.read_data(getData)  # begin collecting data
-            #time.sleep(.001)
-
-            rawDataRef = np.zeros(nRef)
-            rawDataPrim = np.zeros(nPrim)
-            adcData = np.zeros(nADC)
             t0 = None
             while time.time()-init < td: # do dfc for td seconds
 
-                if count >= int(tCoilStart*fs) and onceCoil:
+                #if count >= int(tCoilStart*fs) and onceCoil:
+                if onceCoil:
                     if coilID >= 0:
-                        # energize coil
-                        coil.energize(coilID)
+                        # energize the coil
+                        coil.go()
                         onceCoil = False
 
                 # 1 | get raw data from queue
@@ -495,8 +499,9 @@ def main(ip_list, flg_restart, flg_cz, flg_fz, sName):
             if coilID >= 0:
                 print("turning coil off")
                 coil.deactivate()
-                coil.close()
+                onceCoil = True
 
+        # Out of the fine zero / DFC loop.
 
         # 5.5 | Turn off all the sensors
         #print("acquire service")                   # it's already acquired
@@ -508,50 +513,53 @@ def main(ip_list, flg_restart, flg_cz, flg_fz, sName):
         #    for s in sensID:                       # @@@
         #        f_coeffs.append(service.get_fields(chassID,s))
 
+        coil.close()
         for c in ADCchas:
             service.stop_adc(c)
 
-        # 6 | convert lists onto numpy arrays & save them
+    # The service is now released.
 
-        f_raw_Ref = np.array(f_raw_Ref)
-        f_raw_Prim = np.array(f_raw_Prim)
-        f_raw_adc = np.array(f_raw_adc)
-        f_filt = np.array(f_filt)
+    # 6 | convert lists onto numpy arrays & save them
 
-        f_compRef = np.array(f_compRef)
-        f_compPrim = np.array(f_compPrim)
-        f_gradPrim = np.array(f_gradPrim)
-        f_coeffs = np.array(f_coeffs)
+    f_raw_Ref = np.array(f_raw_Ref)
+    f_raw_Prim = np.array(f_raw_Prim)
+    f_raw_adc = np.array(f_raw_adc)
+    f_filt = np.array(f_filt)
 
-        print('saving data...')
-        if nDfc != nPrim:
-            suffix = '_'
-            for dd in range(len(dfcInd)):
-                suffix += str(dictInd[dfcInd[dd]]) + '-'
-            suffix = suffix[:-1]
-        else:
-            suffix = ''
-        sPath = './testData/test/' + prefix + sName + suffix
-        chNs = chNames_Ref + chNames_Prim # add ADC name here
+    f_compRef = np.array(f_compRef)
+    f_compPrim = np.array(f_compPrim)
+    f_gradPrim = np.array(f_gradPrim)
+    f_coeffs = np.array(f_coeffs)
+
+    print('saving data...')
+    if nDfc != nPrim:
+        suffix = '_'
+        for dd in range(len(dfcInd)):
+            suffix += str(dictInd[dfcInd[dd]]) + '-'
+        suffix = suffix[:-1]
+    else:
+        suffix = ''
+    sPath = './testData/test/' + prefix + sName + suffix
+    chNs = chNames_Ref + chNames_Prim # add ADC name here
 
 
-        np.save(sPath + '_rawRef', f_raw_Ref)
-        np.save(sPath + '_rawPrim', f_raw_Prim)
-        np.save(sPath + '_rawADC', f_raw_adc)
-        np.save(sPath + '_filt', f_filt)
-        np.save(sPath + '_compRef', f_compRef)
-        np.save(sPath + '_compPrim', f_compPrim)
-        np.save(sPath + '_gradPrim', f_gradPrim)
-        np.save(sPath + '_coeffs', f_coeffs)
-        np.save(sPath + '_refInd', refInd)
-        np.save(sPath + '_dfcInd', dfcInd)
-        np.save(sPath + '_primInd', primInd)
-        np.save(sPath + '_chanNames', chNs)
-        np.save(sPath + '_calib', calib)
+    np.save(sPath + '_rawRef', f_raw_Ref)
+    np.save(sPath + '_rawPrim', f_raw_Prim)
+    np.save(sPath + '_rawADC', f_raw_adc)
+    np.save(sPath + '_filt', f_filt)
+    np.save(sPath + '_compRef', f_compRef)
+    np.save(sPath + '_compPrim', f_compPrim)
+    np.save(sPath + '_gradPrim', f_gradPrim)
+    np.save(sPath + '_coeffs', f_coeffs)
+    np.save(sPath + '_refInd', refInd)
+    np.save(sPath + '_dfcInd', dfcInd)
+    np.save(sPath + '_primInd', primInd)
+    np.save(sPath + '_chanNames', chNs)
+    np.save(sPath + '_calib', calib)
 
-        npy2fif(sPath, f_raw_adc, f_raw_Ref, f_raw_Prim, chNs, calib, f_compRef, f_compPrim, f_gradPrim)
+    npy2fif(sPath, f_raw_adc, f_raw_Ref, f_raw_Prim, chNs, calib, f_compRef, f_compPrim, f_gradPrim)
 
-        print('done.')
+    print('done.')
 
 """
     stream_handler = logging.StreamHandler()

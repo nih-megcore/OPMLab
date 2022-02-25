@@ -1,5 +1,7 @@
 import serial
 
+GO = bytes("\r", 'utf8)
+
 class numato:
 
     def __init__(self):
@@ -20,6 +22,14 @@ class numato:
 
     def command(self, s):
         self.serPort.write(bytes(s + "\r", 'utf8'))
+
+    def preactivate(coilID):
+        "send the command but don't press enter"
+        s = f"gpio writeall {hex(64 + coilID)[2:]}"
+        self.serPort.write(bytes(s, 'utf8'))
+
+    def go(self):
+        self.serPort.write(GO)
 
     def close(self):
         self.serPort.close()
