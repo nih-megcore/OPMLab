@@ -50,7 +50,8 @@ def getSensorInfo(ip_list, closedLoop=True):
 # Internally a sensor group is a list of tuples, [(CC, SS), ...]
 
 class SList(propObj):
-    "Store a list of sensors. This can be specified multiple times."
+    """Store a list of sensors. This can be specified multiple times.
+    The syntax CC:* is allowed, and expands to all 16 sensors."""
 
     def _set(self, p, val, cmdLine=False):
         slist = []
@@ -74,10 +75,14 @@ class SList(propObj):
             try:
                 c, s = v.split(':')
                 c = int(c)
-                s = int(s)
-                t = (c, s)
-                if t not in slist:  # ignore dups
-                    slist.append(t)
+                if s == '*':
+                    s = range(1, 17)
+                    slist.extend([(c, x) for x in s])
+                else:
+                    s = int(s)
+                    t = (c, s)
+                    if t not in slist:  # ignore dups
+                        slist.append(t)
             except:
                 # if we're on the command line, an error means stop processing
                 if not cmdLine:

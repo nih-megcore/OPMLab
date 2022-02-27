@@ -1,0 +1,6 @@
+Verbose
+
+#Filter ema .01          # time constant tau
+Filter cheby2 order=10 cutoff=25    # order and Hz
+
+Prim 00:*

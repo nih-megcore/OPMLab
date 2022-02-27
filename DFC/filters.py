@@ -55,7 +55,7 @@ class Filter(propObj):
                         raise ValueError(f"{self._name}: unknown option {name}")
             else:
                 break
-            return d
+        return d
 
     def _set(self, p, val):
         try:

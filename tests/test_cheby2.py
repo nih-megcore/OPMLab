@@ -6,10 +6,12 @@ from numpy import sin, pi
 import matplotlib.pyplot as plt
 from time import time
 from filters import filt_p, cheby2
+from sensors import sens_p
 from param import Param, getParam
 
 p = Param()
 p.registryMerge(filt_p)
+p.registryMerge(sens_p)
 
 try:
     p = getParam(p)
@@ -17,10 +19,8 @@ except Exception as msg:
     print(msg)
     sys.exit(1)
 
-print('Verbose is', p.Verbose)
-print('ParamFile is', p.ParamFile)
-print('Filter is', p.FilterType)
-print('args:', p.args)
+p.enableLogging()
+p.logParam()
 
 exit()
 
