@@ -127,7 +127,6 @@ def slist2clist(slist):
     for c, s in slist:
         if c not in l:
             l.append(c)
-
     return l
 
 def getIndArrays(sensID, refList, primList):
@@ -148,3 +147,13 @@ def getIndArrays(sensID, refList, primList):
         primInd.append(sensID.index((c, s)))
 
     return slist, refInd, primInd
+
+def slist2sdict(slist):
+    "Convert a sensor list [(c, s), ...] into a sensor dict {c: [s1, s2, ...], ...}"
+    
+    sdict = {}
+    for c, s in slist:
+        if not sdict.get(c):
+            sdict[c] = []
+        sdict[c].append(s)
+    return sdict

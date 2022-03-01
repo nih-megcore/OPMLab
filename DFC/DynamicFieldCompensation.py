@@ -17,7 +17,7 @@ from numato import numato
 from npy2fif import npy2fif
 from param import Param, getParam, Str, Bool, Int
 from filters import filt_p, ema, cheby2, nofilt
-from sensors import sens_p, getSensorInfo, slist2clist, getIndArrays
+from sensors import sens_p, getSensorInfo, slist2clist, slist2sdict, getIndArrays
 
 #%%
 
@@ -51,17 +51,13 @@ class DimError(ValueError):
         return 'dimension mismatch: dictInd and primInd are not of the same length'
 
 
-def restart_sensors(ip_list):
+def restart_sensors(ip_list, sensors):
 
     global done
     try:
         with FieldLineService(ip_list) as service:
             done = False
-            # Get dict of all the sensors
-            sensors = service.load_sensors()
-
-            print(f"Got sensors: {sensors}")
-
+            #sensors = service.load_sensors()
             print("Doing sensor restart")
             # Do the restart
             service.restart_sensors(sensors,
@@ -79,15 +75,13 @@ def restart_sensors(ip_list):
         logging.error("Failed to connect: %s" % str(e))
 
 
-def coarse_zero(ip_list):
+def coarse_zero(ip_list, sensors):
 
     global done
     try:
         with FieldLineService(ip_list) as service:
             done = False
-            sensors = service.load_sensors()
-            print(f"Got sensors: {sensors}")
-            time.sleep(2)
+            #sensors = service.load_sensors()
             print("Doing coarse zero")
             service.coarse_zero_sensors(sensors,
                                         on_next=lambda c_id, s_id: print(f'sensor {c_id}:{s_id} finished coarse zero'),
@@ -100,15 +94,13 @@ def coarse_zero(ip_list):
         logging.error("Failed to connect: %s" % str(e))
 
 
-def fine_zero(ip_list):
+def fine_zero(ip_list, sensors):
 
     global done
     try:
         with FieldLineService(ip_list) as service:
             done = False
-
-            sensors = service.load_sensors()
-            print(f"Got sensors: {sensors}")
+            #sensors = service.load_sensors()
             print("Doing fine zero")
             service.fine_zero_sensors(sensors,
                                         on_next=lambda c_id, s_id: print(f'sensor {c_id}:{s_id} finished fine zero'),
@@ -203,33 +195,15 @@ def getCompField_Prim(R, filt_f, g):
 
 #%%
 
-dfcInd = range(15) #[1,3,4,6,9,11,12,13]#range(15)
-nDfc = len(dfcInd)
-
 tCoilStart = 0 # in seconds
 
-#runDFC = 0 # 0: don't run DFC; 1: run for Refs only; 2: run for primary and refs sensors
 closedLoop = 1 # 0: open loop (OL); 1: closed loop
 
 # define dynamic field compensation parameters
-td = 30 # duration of applied compensation segment [in seconds]
+td = 3 # duration of applied compensation segment [in seconds]
 nResets = 0 # defines the # of repetitions of a fine_zero-dfc block. If 0, the block is repeated once.
 
 fs = 1000 # sampling rate
-
-# get dictionary index for adjust_fields()
-sArr = range(1,17) # this is the default sensor id per chassis. It is one-based
-"""
-if faultySens:
-    dictInd = np.setdiff1d(sArr, faultySens+1)
-else:
-    dictInd = sArr
-try:
-    if len(dictInd)!= len(primInd):
-        raise DimError
-except DimError as err:
-    print(err)
-"""
 
 # other variables
 count = 0
@@ -246,27 +220,9 @@ def main(ip_list, flg_restart, flg_cz, flg_fz, sName):
         coil.deactivate()   # make sure all coils are off
         onceCoil = True
 
-    # run restart | coarse | fine zeroing
-    if flg_restart:
-        restart_sensors(ip_list)
-    if flg_cz:
-        coarse_zero(ip_list)
-    if flg_fz:
-        fine_zero(ip_list)
-
     # load rotation matrices
     rot_RefI, rot_RefJ, rot_RefK = loadRotMat_RefSens()  # load rot matrices
     primRotMat = loadRotMat_PrimSens()
-
-    """
-    if faultySens:
-        print(primRotMat.shape)
-        primInd2 = range(0,16)
-        indx = list(np.setdiff1d(primInd2,np.array(faultySens)))
-        print(indx)
-        primRotMat = primRotMat[indx,:,:]
-        print(primRotMat.shape)
-    """
 
     # load additional setup parameters
     global calib, chassID, sensID
@@ -275,31 +231,28 @@ def main(ip_list, flg_restart, flg_cz, flg_fz, sName):
     # sensors we will use, and their indices into sensID
     sensors, refInd, primInd = getIndArrays(sensID, refList, primList)
 
-    # define sensor_dict for adjust_fields()
-    if (np.array(refInd)>15).any():     # @@@
-        cI = 1
-    else:
-        cI = 0
+    sdict = slist2sdict(sensors)
+    print(sdict)
 
-    if runDFC == 1:
-        cInd = [chassID[cI]]
-        sensor_dict = {}
-        for c in cInd:
-            sensor_dict[c] = [None]*len(refInd)
-    else:
-        sensor_dict = {}
-        for c in chassID:
-            if c == chassID[0]:
-                sensor_dict[c] = [None]*len(dfcInd)
-            else:
-                sensor_dict[c] = [None]*len(refInd)
+    dfcInd = primInd	# @@@
+    nDfc = len(dfcInd)
+    
+    sensor_dict = {}
 
+    # run restart | coarse | fine zeroing
+    if flg_restart:
+        restart_sensors(ip_list, sdict)
+    if flg_cz:
+        coarse_zero(ip_list, sdict)
+    if flg_fz:
+        fine_zero(ip_list, sdict)
 
     print('loaded sensor IDs:', sensID)
     print('channel names', chNames)
     print('calibration values:', calib)
     print('len calib ', len(calib) , 'len sens ', len(list(primInd)+refInd))
     print('sensors:', sensors)
+    print('sdict:', sdict)
     print('chassis ID:', chassID)
 
     # get channel names
@@ -307,13 +260,13 @@ def main(ip_list, flg_restart, flg_cz, flg_fz, sName):
     for sens in refInd:
         chNames_Ref.append(chNames[sens])
 
-    print(chNames_Ref)
+    print('References:', chNames_Ref)
 
     chNames_Prim = []
     for sens in primInd:
         chNames_Prim.append(chNames[sens])
 
-    print(chNames_Prim)
+    print('Primaries:', chNames_Prim)
 
     # initialize lists for saving data
     f_raw_Ref = []
@@ -360,7 +313,7 @@ def main(ip_list, flg_restart, flg_cz, flg_fz, sName):
             done = False
             print(f"Doing fine zero {n}")
             sensors = service.load_sensors()
-            service.fine_zero_sensors(sensors,
+            service.fine_zero_sensors(sdict,
                                         on_next=lambda c_id, s_id: print(f'sensor {c_id}:{s_id} finished fine zero'),
                                         on_error=lambda c_id, s_id, err: print(f'sensor {c_id}:{s_id} failed with {hex(err)}'),
                                         on_completed=lambda: call_done())
@@ -376,7 +329,6 @@ def main(ip_list, flg_restart, flg_cz, flg_fz, sName):
             t0 = None
             while time.time()-init < td: # do dfc for td seconds
 
-                #if count >= int(tCoilStart*fs) and onceCoil:
                 if onceCoil:
                     if coilID >= 0:
                         # energize the coil
@@ -395,7 +347,7 @@ def main(ip_list, flg_restart, flg_cz, flg_fz, sName):
 
                     for i, c in enumerate(ADCchas):
                         name = f"{c:02d}:00:0"
-                        adcData[i] = data['data_frames'][name]['data']*2.980232238769531e-07
+                        adcData[i] = data['data_frames'][name]['data']*2.980232238769531e-07	# @@@ give this a name
 
                     timestamp = data['timestamp']/25*1e3 # api uses a sampling rate of 25MHz
                     if t0 is None:
@@ -405,11 +357,15 @@ def main(ip_list, flg_restart, flg_cz, flg_fz, sName):
                     f_raw_Ref.append(list(np.insert(rawDataRef,0,time.time()-init)))
                     f_raw_Prim.append(list(rawDataPrim))
                     f_raw_adc.append(list(adcData))
-                    #print(count)
 
                 except queue.Empty:
                     print("empty")
                     continue
+
+                # 1.1 | reinitialize the dict for adjust_fields()
+
+                for c in chassID:
+                    sensor_dict[c] = []
 
                 # 2 | filter the reference sensors
 
@@ -425,12 +381,10 @@ def main(ip_list, flg_restart, flg_cz, flg_fz, sName):
                     bx_K, by_K = getCompField_Ref(rot_RefK, filt_f, 1)
 
                     if runDFC > 0:
-                        c = sensID[refInd[0]]   # @@@ all references have to be on the same chassis
-                        sensor_dict[c][0] = (sensID[refInd[0]][1], -bx_I, -by_I, None)
-                        sensor_dict[c][1] = (sensID[refInd[1]][1], -bx_J, -by_J, None)
-                        sensor_dict[c][2] = (sensID[refInd[2]][1], -bx_K, -by_K, None)
-
-                        # print(sensor_dict)
+                        c = sensID[refInd[0]][0] # @@@ all references have to be on the same chassis
+                        sensor_dict[c].append((sensID[refInd[0]][1], -bx_I, -by_I, None))
+                        sensor_dict[c].append((sensID[refInd[1]][1], -bx_J, -by_J, None))
+                        sensor_dict[c].append((sensID[refInd[2]][1], -bx_K, -by_K, None))
 
                     # 3.1.1 | save compensation values onto compRef matrix
 
@@ -444,52 +398,45 @@ def main(ip_list, flg_restart, flg_cz, flg_fz, sName):
 
                 compPrim = np.zeros([nPrim, 3])
                 gradPrim = np.zeros(nPrim)
-                cc = 0
                 for sens in range(nPrim):
-                    # the sensor # within the chassis is the index into array of rotation matrices
+                    # the sensor # within the chassis is the index into array of rotation matrices 
+                    # index origin 0
                     c, s = sensID[primInd[sens]]
-                    s -= 1  # make origin 0
+                    bx, by, bz = getCompField_Prim(primRotMat[s-1], filt_f, 1)
 
-                    bx, by, bz = getCompField_Prim(primRotMat[s], filt_f, 1)
-                    compPrim[sens,:] = np.array([bx, by, bz]) # save compensation values
-                    gradPrim[sens] = rawDataPrim[sens] - bz # compute 1st order gradiometer
+                    compPrim[sens,:] = np.array([bx, by, bz])   # save compensation values
+                    gradPrim[sens] = rawDataPrim[sens] - bz     # compute 1st-order gradiometer
 
-                    if runDFC > 1 and (primInd[sens] in dfcInd):    # @@@ not working yet
-                        tmp = (dictInd[sens], -bx, -by, None) # create tuple
-                        sensor_dict[c][cc] = tmp # this is needed for the adjust_fields() call
-                        cc +=1          # @@@ can use s here??
+                    # compensate selected primary sensors
+                    if runDFC > 1 and (primInd[sens] in dfcInd):
+                        sensor_dict[c].append((s, -bx, -by, None))
 
                 f_compPrim.append(compPrim)
                 f_gradPrim.append(gradPrim)
 
                 if runDFC > 0:
                     # 4 | call adjust_fields()
-                    print(sensor_dict)
                     service.adjust_fields(sensor_dict) # apply compensation field
 
                 if flgControlC:
                     print('bye')
                     break
 
-            # 5 | reset calls       # @@@ not working yet
+            # Out of the while loop.
+
+            # 5 | reset calls
 
             if runDFC > 0:
                 # 5.1 | reset adjust_fields()
-                if runDFC == 1:
-                    cInd = [chassID[cI]]
-                else:
-                    cInd = chassID
-
-                for c in cInd:
+                # use the last sensor dict
+                for c in chassID:
                     for i in range(len(sensor_dict[c])):
                         sensor_dict[c][i] = (sensor_dict[c][i][0], 0, 0, 0)
-
                 service.adjust_fields(sensor_dict)
-                print(sensor_dict)
 
             # 5.2 | stop getdata callback
             service.read_data()
-            time.sleep(.01) # !!
+            time.sleep(.01) # !! @@@ do we need this??
 
             # 5.3 | stop clock
             stopped = time.time() - init
@@ -513,7 +460,8 @@ def main(ip_list, flg_restart, flg_cz, flg_fz, sName):
         #    for s in sensID:                       # @@@
         #        f_coeffs.append(service.get_fields(chassID,s))
 
-        coil.close()
+        if coilID >= 0:
+            coil.close()
         for c in ADCchas:
             service.stop_adc(c)
 
@@ -529,17 +477,10 @@ def main(ip_list, flg_restart, flg_cz, flg_fz, sName):
     f_compRef = np.array(f_compRef)
     f_compPrim = np.array(f_compPrim)
     f_gradPrim = np.array(f_gradPrim)
-    f_coeffs = np.array(f_coeffs)
+    #f_coeffs = np.array(f_coeffs)
 
     print('saving data...')
-    if nDfc != nPrim:
-        suffix = '_'
-        for dd in range(len(dfcInd)):
-            suffix += str(dictInd[dfcInd[dd]]) + '-'
-        suffix = suffix[:-1]
-    else:
-        suffix = ''
-    sPath = './testData/test/' + prefix + sName + suffix
+    sPath = './testData/test/' + prefix + sName
     chNs = chNames_Ref + chNames_Prim # add ADC name here
 
 
@@ -550,7 +491,7 @@ def main(ip_list, flg_restart, flg_cz, flg_fz, sName):
     np.save(sPath + '_compRef', f_compRef)
     np.save(sPath + '_compPrim', f_compPrim)
     np.save(sPath + '_gradPrim', f_gradPrim)
-    np.save(sPath + '_coeffs', f_coeffs)
+    #np.save(sPath + '_coeffs', f_coeffs)
     np.save(sPath + '_refInd', refInd)
     np.save(sPath + '_dfcInd', dfcInd)
     np.save(sPath + '_primInd', primInd)
@@ -561,17 +502,8 @@ def main(ip_list, flg_restart, flg_cz, flg_fz, sName):
 
     print('done.')
 
-"""
-    stream_handler = logging.StreamHandler()
-    logging.basicConfig(
-        format='%(asctime)s %(levelname)s %(threadName)s(%(process)d) %(message)s [%(filename)s:%(lineno)d]',
-        datefmt='%m/%d/%Y %I:%M:%S %p',
-        level=logging.DEBUG if args.verbose else logging.ERROR,
-        handlers=[stream_handler]
-    )
-"""
 
-def parse_arguments():
+if __name__ == "__main__":
 
     # Load a standard parser, add some extra parameters, and merge in the special parsers.
 
@@ -581,12 +513,14 @@ def parse_arguments():
     p.register("restart", 'r', Bool(), help="Flag to restart sensors.", default=False)
     p.register("coarseZero", 'c', Bool(), help="Flag to coarse zero sensors.", default=False)
     p.register("fineZero", 'f', Bool(), help="Flag to fine zero sensors.", default=False)
-    p.register("savingName", 's', Str(), arghelp="PATH", help="Path to save data.")
+    p.register("saveName", 's', Str(), arghelp="PATH", help="Path to save data.")
     p.register("runDFC", 'd', Int(), default=0, arghelp="N", help="0 (noDFC, default), 1 (refDFC), or 2 (primDFC).")
     p.register("coilID", 'C', Int(), default=-1, arghelp="N", help="Calibrator coil id. Default none (-1).")
 
     p.registryMerge(sens_p)     # sensor list parameters
     p.registryMerge(filt_p)     # filter parameters
+
+    # Get all the parameters from the command line, environment, and parameter files.
 
     try:
         p = getParam(p)
@@ -594,24 +528,26 @@ def parse_arguments():
         print(e)
         sys.exit(1)
 
-    p.enableLogging()
-    p.logParam()
-
-    return p
-
-if __name__ == "__main__":
-
-    # parse arguments
-    p = parse_arguments()
+    # Sanity checks
 
     if not p.ipList:
         p.err("--ip is required")
     ip_list = p.ipList.split(',')
 
+    if not p.saveName:
+        p.err("--saveName is required")
+
+    # Enable logging and write the parameters to the log file.
+
+    p.enableLogging()
+    p.logParam()
+
+    # convenient names for things
+
     flg_restart = p.restart
     flg_cz = p.coarseZero
     flg_fz = p.fineZero
-    sName = p.savingName
+    sName = p.saveName
     runDFC = p.runDFC
     coilID = p.coilID
     filter = p.FilterType
@@ -623,11 +559,12 @@ if __name__ == "__main__":
     nPrim = len(primList)
     nADC = len(ADCList)
 
-    # Convert ADCList to a list of just the chassis numbers
+    # Convert ADCList to a list of just the chassis numbers.
 
     ADCchas = slist2clist(ADCList)
 
     # Save the DFC type in the output filename.
+
     if p.runDFC == 0:
         prefix = 'noDFC_'
     elif p.runDFC == 1:
@@ -636,6 +573,7 @@ if __name__ == "__main__":
         prefix = 'primDFC_'
 
     # Create the filter for the references.
+
     if filter[0] == 'e':
         tau = filter[1]
         filter_ref = ema(nRef, tau)
@@ -645,7 +583,7 @@ if __name__ == "__main__":
     elif filter[0] == 'n':
         filter_ref = nofilt(nRef)
     else:
-        print(f"Unknown filter type {filter}.")
+        print(f"Unknown filter type {filter}.") # @@@ maybe can't get here
         sys.exit(1)
 
     print("Connecting to IPs:", ip_list)

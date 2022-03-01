@@ -1,6 +1,6 @@
 import serial
 
-GO = bytes("\r", 'utf8)
+GO = bytes("\r", 'utf8')
 
 class numato:
 
