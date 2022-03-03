@@ -2,6 +2,7 @@
 using parameter files for specifying such groups, and service related
 calls."""
 
+import time
 import logging
 from fieldline_api.fieldline_service import FieldLineService
 from param import Param, propObj, Filename
@@ -132,10 +133,11 @@ def getIndArrays(sensID, refList, primList):
 def getSensors(ip_list):
     "Get the list of all known (chassis, sensor) pairs."
 
+    print("[getSensors]")
     sensors = []
     with FieldLineService(ip_list) as service:
         sdict = service.load_sensors()        # get all known sensors
-        print('[getSensors]', sdict)
+        print(sdict)
         chassID = list(sdict.keys())
 
         for c in chassID:
@@ -151,6 +153,7 @@ def getSensorInfo(ip_list, sdict, closedLoop=True):
     - calibration values
     """
 
+    print("[getSensorInfo]")
     if closedLoop:
         suffix = ':50'
     else:
