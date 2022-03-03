@@ -14,16 +14,16 @@ class numato:
         self.command("gpio iomask ff")  # address all pins
         self.command("gpio iodir 00")   # output mode
 
-    def activate(coilID):
+    def activate(self, coilID):
         self.command(f"gpio writeall {hex(64 + coilID)[2:]}")
 
-    def deactivate():
+    def deactivate(self):
         self.command("gpio writeall 00")
 
     def command(self, s):
         self.serPort.write(bytes(s + "\r", 'utf8'))
 
-    def preactivate(coilID):
+    def preactivate(self, coilID):
         "send the command but don't press enter"
         s = f"gpio writeall {hex(64 + coilID)[2:]}"
         self.serPort.write(bytes(s, 'utf8'))
