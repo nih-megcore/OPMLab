@@ -1,7 +1,7 @@
 import mne
 import numpy as np
 
-def npy2fif(sPath, rawADC, rawRef, rawPrim, chNames, calib, compRef, compPrim, grad):
+def npy2fif(sPath, sensID, rawADC, rawRef, rawPrim, chNames, calib, compRef, compPrim, grad, fzCoeffs):
     print("[npy2fif]")
     g = 1e9
     n_channels = len(chNames)
@@ -12,9 +12,12 @@ def npy2fif(sPath, rawADC, rawRef, rawPrim, chNames, calib, compRef, compPrim, g
     if np.ndim(rawADC)>1:
         nSamp = rawADC.shape[0] 
         ii = rawADC.shape[1]
-    else:
+    elif np.ndim(rawADC)==1:
         nSamp = len(rawADC)
-        ii = 1
+        ii =1
+    else:
+        nSamp = rawRef.shape[0]
+        ii = 0
     print(f"{nSamp} samples")
     print(ii)
     # ADC and raw data
@@ -52,23 +55,28 @@ def npy2fif(sPath, rawADC, rawRef, rawPrim, chNames, calib, compRef, compPrim, g
     print(calib)
 
     for n in range(ii, n_channels+ii):
-        info['chs'][n]['cal'] = calib[n-ii]
+        info['chs'][n]['cal'] = calib[sensID[n-ii]]
         print(info['chs'][n]['cal'])
-    
+        #info['chs'][n]['fzCoeff'] = []
+        #info['chs'][n]['fzCoeff'] =  fzCoeffs[n-ii,:]
+        
+         
     for aa in range(ii):
         info['chs'][aa]['cal'] = 2.980232238769531e-07
-            
+        #info['chs'][aa]['fzCoeff'] = []    
     print(n)
     # compensation fields bx,by 
     
     for n in range(n_channels*2):
         info['chs'][n+n_channels+ii]['cal'] = 1e-15
+        #info['chs'][n+n_channels+ii]['fzCoeff'] = []  
     print(n+n_channels+ii)
     # gradiometer response 
    
     for n in range(n_channels-3):
         print(len(info['chs']),n+(n_channels*3)+ii)
         info['chs'][n+(n_channels*3)+ii]['cal'] = 1e-15
+        #info['chs'][n+(n_channels*3)+ii]['fzCoeff'] = [] 
     print(n+(n_channels*3)+ii)         
     global dat
     print(rawADC.shape, rawRef.shape, rawPrim.shape)
