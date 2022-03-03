@@ -1,0 +1,17 @@
+Verbose False
+
+ipList 192.168.1.40,192.168.1.42	# no space allowed
+
+logName 20220303.log
+
+runDFC 2
+Dur 90
+
+ADC 00:00
+Ref 01:01 01:02 01:03
+Prim 00:*
+
+Filter cheby2 cutoff=22
+
+# Closedloop True
+
