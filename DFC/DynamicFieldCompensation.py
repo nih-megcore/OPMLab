@@ -1,9 +1,5 @@
 #! /usr/bin/env python
 
-from fieldline_api.fieldline_service import FieldLineService
-from fieldline_api.pycore.hardware_state import HardwareState
-from fieldline_api.pycore.sensor import SensorInfo, ChannelInfo
-
 import logging
 import threading
 import queue
@@ -13,6 +9,8 @@ import string
 import numpy as np
 import signal
 import copy
+
+from service import FLService
 from numato import numato
 from npy2fif import npy2fif
 from param import Param, getParam, Str, Bool, Int, Float, Dirname	# should just use *, add __all__ @@@
@@ -139,11 +137,6 @@ fs = 1000 # sampling rate
 count = 0
 g = 1e9  # to convert data into nanotesla
 
-done = False
-def call_done():
-    global done
-    done = True
-
 def main(ip_list, flg_restart, flg_cz, flg_fz, sName):
     global done
 
@@ -158,8 +151,11 @@ def main(ip_list, flg_restart, flg_cz, flg_fz, sName):
     rot_RefI, rot_RefJ, rot_RefK = loadRotMat_RefSens() # load rot matrices
     primRotMat = loadRotMat_PrimSens()
 
+    # Get the FieldLine service
+    service = FLService(ip_list)
+
     # Get the full list of sensor (c, s) pairs from the hardware.
-    sensID = getSensors(ip_list)
+    sensID = service.getSensors()
 
     # sensors we will use as (c, s) pairs, and their indices into sensID
     sensors, refInd, primInd = getIndArrays(sensID, refList, primList)
@@ -176,16 +172,18 @@ def main(ip_list, flg_restart, flg_cz, flg_fz, sName):
 
     # run restart | coarse | fine zeroing
     if flg_restart:
-        restart_sensors(ip_list, sdict, closedLoop)
+        service.restartSensors(sdict, closedLoop)
     if flg_cz:
-        czCoeffs = coarse_zero(ip_list, sdict)
+        service.coarseZero(sdict)
+        czCoeffs = service.getCoeffs(sdict)
         print('after coarse zero', czCoeffs)
     if flg_fz:
-        fzCoeffs0 = fine_zero(ip_list, sdict)
-        print('after fine zero', fzCoeffs)
+        service.fineZero(sdict)
+        fzCoeffs0 = service.getCoeffs(sdict)
+        print('after fine zero', fzCoeffs0)
 
     # load additional setup parameters
-    chNames, calib = getSensorInfo(ip_list, sdict, closedLoop)
+    chNames, calib = service.getSensorInfo(sdict, closedLoop)
 
     print('loaded sensor IDs:', sensID)
     print('sensors:', sensors)
@@ -221,213 +219,178 @@ def main(ip_list, flg_restart, flg_cz, flg_fz, sName):
     f_gradPrim = []
     f_coeffs = []
 
-    print("acquire service")
-    with FieldLineService(ip_list) as service:
-        q = queue.Queue(50) # queue is needed to access bz data outside the getData callback
+    q = queue.Queue(50) # queue is needed to access bz data outside the getData callback
 
-        def getData(data):
-            """
-            This function is a callback to read the data structure in the stream.
-            The data is saved on a queue that can be accessed outside of this function.
-            The variable count counts the total number of samples.
-            """
-            global count
-            count += 1
-            q.put(data)
+    def getData(data):
+        """
+        This function is a callback to read the data structure in the stream.
+        The data is saved on a queue that can be accessed outside of this function.
+        The variable count counts the total number of samples.
+        """
+        global count
+        count += 1
+        q.put(data)
 
-        print("Press Enter")
-        sys.stdin.read(1)
+    print("Press Enter")
+    sys.stdin.read(1)
 
-        for c in ADCchas:
-            service.start_adc(c)
+    init = time.time()
+    print('tstart:', str((time.time()-init)*fs))
 
-        for n in range(nResets+1): # this block does fine zeroing before the dfc is started
+    for c in ADCchas:
+        service.start_adc(c)
 
-            # Get ready to energize the coil as quickly as possible.
+    for n in range(nResets+1): # this block does fine zeroing before the dfc is started
 
-            if coilID >= 0:
-                coil.preactivate(coilID)
-
-            rawDataRef = np.zeros(nRef)
-            rawDataPrim = np.zeros(nPrim)
-            adcData = np.zeros(nADC)
-
-            done = False
-            print(f"Doing fine zero {n}")
-            service.fine_zero_sensors(sdict,
-                on_next=lambda c_id, s_id: print(f'sensor {c_id}:{s_id} finished fine zero'),
-                on_error=lambda c_id, s_id, err: print(f'sensor {c_id}:{s_id} failed with {hex(err)}'),
-                on_completed=lambda: call_done())
-            while not done:
-                time.sleep(0.002)
-
-            service.read_data(getData)  # begin collecting data
-
-            init = time.time()
-            started = time.time()-init
-            print('tstart: ' + str(started*fs))
-
-            bozo = True
-            t0 = None
-            while time.time()-init < td: # do dfc for td seconds
-
-                if onceCoil:
-                    if coilID >= 0:
-                        # energize the coil
-                        coil.go()
-                        onceCoil = False
-
-                if time.time()-init > 5 and bozo:
-                    bozo = False
-                    done = False
-                    print(f"Doing bozo")
-                    service.fine_zero_sensors(sdict,
-                        on_next=lambda c_id, s_id: print(f'sensor {c_id}:{s_id} finished fine zero'),
-                        on_error=lambda c_id, s_id, err: print(f'sensor {c_id}:{s_id} failed with {hex(err)}'),
-                        on_completed=lambda: call_done())
-                    while not done:
-                        time.sleep(0.002)
-
-                # 1 | get raw data from queue
-                try:
-                    data = q.get(timeout=0.5)
-
-                    for sens in range(nRef):
-                        rawDataRef[sens] = data['data_frames'][chNames_Ref[sens]]['data']*calib_Ref[sens]*g
-
-                    for sens in range(nPrim):
-                        rawDataPrim[sens] = data['data_frames'][chNames_Prim[sens]]['data']*calib_Prim[sens]*g
-
-                    for i, c in enumerate(ADCchas):
-                        name = f"{c:02d}:00:0"
-                        adcData[i] = data['data_frames'][name]['data']*2.980232238769531e-07 # @@@ give this a name
-
-                    timestamp = data['timestamp']/25*1e3 # api uses a sampling rate of 25MHz
-                    if t0 is None:
-                        t0 = timestamp / 1000
-                    print(timestamp / 1000 - t0)
-
-                    f_raw_Ref.append(list(np.insert(rawDataRef,0,time.time()-init)))
-                    f_raw_Prim.append(list(rawDataPrim))
-                    f_raw_adc.append(list(adcData))
-
-                except queue.Empty:
-                    print("empty")
-                    continue
-
-                # 1.1 | reinitialize the dict for adjust_fields()
-
-                for c in chassID:
-                    sensor_dict[c] = []
-
-                # 2 | filter the reference sensors
-
-                if refInd:
-                    filt_f = filter_ref(rawDataRef)
-                    f_filt.append(filt_f)
-
-                    # 3 | compute & save compensation fields
-
-                    # 3.1 | Ref sensors
-                    bx_I, by_I = getCompField_Ref(rot_RefI, filt_f, 1)
-                    bx_J, by_J = getCompField_Ref(rot_RefJ, filt_f, 1)
-                    bx_K, by_K = getCompField_Ref(rot_RefK, filt_f, 1)
-
-                    if runDFC > 0:
-                        c = sensID[refInd[0]][0] # @@@ all references have to be on the same chassis
-                        sensor_dict[c].append((sensID[refInd[0]][1], -bx_I, -by_I, None))
-                        sensor_dict[c].append((sensID[refInd[1]][1], -bx_J, -by_J, None))
-                        sensor_dict[c].append((sensID[refInd[2]][1], -bx_K, -by_K, None))
-
-                    # 3.1.1 | save compensation values onto compRef matrix
-
-                    compRef = np.zeros([nRef,2])
-                    compRef[0,0], compRef[0,1] = bx_I, by_I
-                    compRef[1,0], compRef[1,1] = bx_J, by_J
-                    compRef[2,0], compRef[2,1] = bx_K, by_K
-                    f_compRef.append(compRef)
-
-                # 3.2 | Primary sensors
-
-                compPrim = np.zeros([nPrim, 3])
-                gradPrim = np.zeros(nPrim)
-                for sens in range(nPrim):
-                    # the sensor # within the chassis is the index into array of rotation matrices
-                    # index origin 0
-                    c, s = sensID[primInd[sens]]
-                    bx, by, bz = getCompField_Prim(primRotMat[s-1], filt_f, 1)
-
-                    compPrim[sens,:] = np.array([bx, by, bz])   # save compensation values
-                    gradPrim[sens] = rawDataPrim[sens] - bz     # compute 1st-order gradiometer
-
-                    # compensate selected primary sensors
-                    if runDFC > 1 and (primInd[sens] in dfcInd):
-                        sensor_dict[c].append((s, -bx, -by, None))
-
-                f_compPrim.append(compPrim)
-                f_gradPrim.append(gradPrim)
-
-                if runDFC > 0:
-                    # 4 | call adjust_fields()
-                    service.adjust_fields(sensor_dict) # apply compensation field
-
-                if flgControlC:
-                    print('bye')
-                    break
-
-            # Out of the while loop.
-
-            # 5 | reset calls
-
-            if runDFC > 0:
-                # 5.1 | reset adjust_fields()
-                # use the last sensor dict
-                for c in chassID:
-                    for i in range(len(sensor_dict[c])):
-                        sensor_dict[c][i] = (sensor_dict[c][i][0], 0, 0, 0)
-                service.adjust_fields(sensor_dict)
-
-            # 5.2 | stop getdata callback
-            service.read_data()
-            #time.sleep(.01) # !! @@@ do we need this??
-
-            # 5.3 | stop clock
-            stopped = time.time() - init
-            print('tstop:' + str(stopped * 1000))
-
-            # 5.4 | deactivate coil
-            if coilID >= 0:
-                print("turning coil off")
-                coil.deactivate()
-                onceCoil = True
-
-            print("getting coeffs")
-            fzCoeffs = []
-            for c in chassID:
-                for s in sdict[c]:
-                    fzCoeffs.append(service.get_fields(c,s))
-                    
-        # Out of the fine zero / DFC loop.
-
-        # 5.5 | Turn off all the sensors
-        #print("acquire service")                   # it's already acquired
-        #with FieldLineService(ip_list) as service:
-        #   # sensors = service.load_sensors()
-        #   # service.turn_off_sensors(sensors)
-        #    service.stop_adc(0)
-        #    #service.stop_adc(1)
-        #    for s in sensID:                       # @@@
-        #        f_coeffs.append(service.get_fields(chassID,s))
+        # Get ready to energize the coil as quickly as possible.
 
         if coilID >= 0:
-            coil.close()
-        for c in ADCchas:
-            service.stop_adc(c)
+            coil.preactivate(coilID)
 
-    # The service is now released.
+        rawDataRef = np.zeros(nRef)
+        rawDataPrim = np.zeros(nPrim)
+        adcData = np.zeros(nADC)
 
-    #print("getting coeffs")
-    #fzCoeffs = getCoeffs(ip_list, sdict)
+        print(f"Doing fine zero {n}")
+        service.fineZero(sdict)
+
+        service.read_data(getData)  # begin collecting data
+
+        bozo = True
+        t0 = None
+        while time.time()-init < td: # do dfc for td seconds
+
+            if onceCoil:
+                if coilID >= 0:
+                    # energize the coil
+                    coil.go()
+                    onceCoil = False
+
+            if time.time()-init > 5 and bozo:
+                bozo = False
+                print(f"Doing bozo")
+                service.fineZero(sdict)
+
+            # 1 | get raw data from queue
+            try:
+                data = q.get(timeout=0.5)
+
+                for sens in range(nRef):
+                    rawDataRef[sens] = data['data_frames'][chNames_Ref[sens]]['data']*calib_Ref[sens]*g
+
+                for sens in range(nPrim):
+                    rawDataPrim[sens] = data['data_frames'][chNames_Prim[sens]]['data']*calib_Prim[sens]*g
+
+                for i, c in enumerate(ADCchas):
+                    name = f"{c:02d}:00:0"
+                    adcData[i] = data['data_frames'][name]['data']*2.980232238769531e-07 # @@@ give this a name
+
+                timestamp = data['timestamp']/25*1e3 # api uses a sampling rate of 25MHz
+                if t0 is None:
+                    t0 = timestamp / 1000
+                if count % 100 == 0:
+                    print(timestamp / 1000 - t0)
+
+                f_raw_Ref.append(list(np.insert(rawDataRef,0,time.time()-init)))
+                f_raw_Prim.append(list(rawDataPrim))
+                f_raw_adc.append(list(adcData))
+
+            except queue.Empty:
+                print("empty")
+                continue
+
+            # 1.1 | reinitialize the dict for adjust_fields()
+
+            for c in chassID:
+                sensor_dict[c] = []
+
+            # 2 | filter the reference sensors
+
+            if refInd:
+                filt_f = filter_ref(rawDataRef)
+                f_filt.append(filt_f)
+
+                # 3 | compute & save compensation fields
+
+                # 3.1 | Ref sensors
+                bx_I, by_I = getCompField_Ref(rot_RefI, filt_f, 1)
+                bx_J, by_J = getCompField_Ref(rot_RefJ, filt_f, 1)
+                bx_K, by_K = getCompField_Ref(rot_RefK, filt_f, 1)
+
+                if runDFC > 0:
+                    c = sensID[refInd[0]][0] # @@@ all references have to be on the same chassis
+                    sensor_dict[c].append((sensID[refInd[0]][1], -bx_I, -by_I, None))
+                    sensor_dict[c].append((sensID[refInd[1]][1], -bx_J, -by_J, None))
+                    sensor_dict[c].append((sensID[refInd[2]][1], -bx_K, -by_K, None))
+
+                # 3.1.1 | save compensation values onto compRef matrix
+
+                compRef = np.zeros([nRef,2])
+                compRef[0,0], compRef[0,1] = bx_I, by_I
+                compRef[1,0], compRef[1,1] = bx_J, by_J
+                compRef[2,0], compRef[2,1] = bx_K, by_K
+                f_compRef.append(compRef)
+
+            # 3.2 | Primary sensors
+
+            compPrim = np.zeros([nPrim, 3])
+            gradPrim = np.zeros(nPrim)
+            for sens in range(nPrim):
+                # the sensor # within the chassis is the index into array of rotation matrices
+                # index origin 0
+                c, s = sensID[primInd[sens]]
+                bx, by, bz = getCompField_Prim(primRotMat[s-1], filt_f, 1)
+
+                compPrim[sens,:] = np.array([bx, by, bz])   # save compensation values
+                gradPrim[sens] = rawDataPrim[sens] - bz     # compute 1st-order gradiometer
+
+                # record compensation for selected primary sensors
+                if runDFC > 1 and (primInd[sens] in dfcInd):
+                    sensor_dict[c].append((s, -bx, -by, None))
+
+            f_compPrim.append(compPrim)
+            f_gradPrim.append(gradPrim)
+
+            if runDFC > 0:
+                # 4 | call adjust_fields()
+                service.adjust_fields(sensor_dict) # apply compensation field
+
+            if flgControlC:
+                print('bye')
+                break
+
+        # Out of the while loop.
+
+        # 5 | reset calls
+
+        if runDFC > 0:
+            # 5.1 | reset adjust_fields()
+            # use the last sensor dict
+            for c in chassID:
+                for i in range(len(sensor_dict[c])):
+                    sensor_dict[c][i] = (sensor_dict[c][i][0], 0, 0, 0)
+            service.adjust_fields(sensor_dict)
+
+        # 5.2 | stop getdata callback
+        service.read_data()
+
+        # 5.3 | deactivate coil
+        if coilID >= 0:
+            print("turning coil off")
+            coil.deactivate()
+            onceCoil = True
+
+    # stop clock
+    print('tstop:', str((time.time()-init)*fs))
+
+    # Get the final fine zero values.
+    fzCoeffs = service.getCoeffs(sdict)
+
+    if coilID >= 0:
+        coil.close()
+
+    for c in ADCchas:
+        service.stop_adc(c)
 
     # 6 | convert lists onto numpy arrays & save them
 

@@ -1,17 +1,10 @@
 """This module contains functions for dealing with groups of sensors,
-using parameter files for specifying such groups, and service related
-calls."""
+and using parameter files for specifying such groups."""
 
 import time
-import logging
-from fieldline_api.fieldline_service import FieldLineService
 from param import Param, propObj, Filename
 
-# So we can 'from sensors import *'
-
-__all__ = ['sens_p', 'slist2clist', 'slist2sdict', 'getIndArrays',
-    'getSensors', 'getSensorInfo', 'getCoeffs', 'call_done',
-    'restart_sensors', 'coarse_zero', 'fine_zero']
+__all__ = ['sens_p', 'slist2clist', 'slist2sdict', 'getIndArrays']
 
 # Create a custom property object to parse sensor groups.
 
@@ -77,6 +70,7 @@ class SList(propObj):
 # @@@ fif2ctf could use this parameter file instead of the jig.def file.
 
 sens_p = Param()
+
 sens_p.mkDesc('JigDef', 'j', Filename(), arghelp="JIGFILE", default="jig.def",
     help="The name of a file to store the jig layout.")
 sens_p.mkDesc('RefList', None, SList(), listValue=True, arghelp="SENSORLIST",
@@ -127,135 +121,3 @@ def getIndArrays(sensID, refList, primList):
         primInd.append(sensID.index((c, s)))
 
     return slist, refInd, primInd
-
-# Service related calls.
-
-def getSensors(ip_list):
-    "Get the list of all known (chassis, sensor) pairs."
-
-    print("[getSensors]")
-    sensors = []
-    with FieldLineService(ip_list) as service:
-        sdict = service.load_sensors()        # get all known sensors
-        print(sdict)
-        chassID = list(sdict.keys())
-
-        for c in chassID:
-            for s in sdict[c]:
-                sensors.append((c, s))
-
-    return sensors
-
-def getSensorInfo(ip_list, sdict, closedLoop=True):
-    """
-    This function gets post-zeroing information from the setup:
-    - channel names (with the open loop [:28]/closed loop [:50] indicator)
-    - calibration values
-    """
-
-    print("[getSensorInfo]")
-    if closedLoop:
-        suffix = ':50'
-    else:
-        suffix = ':28'
-
-    ch_names = {}
-    calib = {}
-    with FieldLineService(ip_list) as service:
-        chassID = list(sdict.keys())
-        for c in chassID:
-            for s in sdict[c]:
-                ch = service.hardware_state.get_sensor(c, s).name + suffix
-                ch_names[(c, s)] = ch
-                cv = service.get_calibration_value(ch)
-                if type(cv) == dict:
-                    calib[(c, s)] = cv['calibration']
-
-        if len(calib) == 0:
-            logging.warn("no calibration values")
-
-    return ch_names, calib
-
-def getCoeffs(ip_list, sdict):
-    """
-    get coarse zero or fine zero field offset values
-    """
-    with FieldLineService(ip_list) as service:
-        chassID = list(sdict.keys())
-        field_coeffs = []
-        for c in chassID:
-            for s in sdict[c]:
-                field_coeffs.append(service.get_fields(c, s))
-
-    return field_coeffs
-
-# Generic "done" callback
-
-done = False
-def call_done():
-    global done
-    done = True
-
-def restart_sensors(ip_list, sdict, closedLoop=True):
-    global done
-
-    try:
-        with FieldLineService(ip_list) as service:
-            done = False
-            print("Doing sensor restart")
-            service.restart_sensors(sdict,
-                on_next=lambda c_id, s_id: print(f'sensor {c_id}:{s_id} finished restart'),
-                on_error=lambda c_id, s_id, err: print(f'sensor {c_id}:{s_id} failed with {hex(err)}'),
-                on_completed=lambda: call_done())
-            while not done:
-                time.sleep(0.5)
-
-            if closedLoop:
-                # Make sure closed loop is set
-                service.set_closed_loop(True)
-
-    except ConnectionError as e:
-        logging.error("Failed to connect: %s" % str(e))
-
-def coarse_zero(ip_list, sdict):
-    global done
-
-    try:
-        with FieldLineService(ip_list) as service:
-            done = False
-            print("Doing coarse zero")
-            service.coarse_zero_sensors(sdict,
-                on_next=lambda c_id, s_id: print(f'sensor {c_id}:{s_id} finished coarse zero'),
-                on_error=lambda c_id, s_id, err: print(f'sensor {c_id}:{s_id} failed with {hex(err)}'),
-                on_completed=lambda: call_done())
-            while not done:
-                time.sleep(0.5)
-
-    except ConnectionError as e:
-        logging.error("Failed to connect: %s" % str(e))
-
-    # return the field coefficients
-
-    return getCoeffs(ip_list, sdict)
-
-def fine_zero(ip_list, sdict):
-    global done
-
-    try:
-        with FieldLineService(ip_list) as service:
-            done = False
-            print("Doing fine zero")
-            service.fine_zero_sensors(sdict,
-                on_next=lambda c_id, s_id: print(f'sensor {c_id}:{s_id} finished fine zero'),
-                on_error=lambda c_id, s_id, err: print(f'sensor {c_id}:{s_id} failed with {hex(err)}'),
-                on_completed=lambda: call_done())
-            while not done:
-                time.sleep(0.5)
-
-    except ConnectionError as e:
-        logging.error("Failed to connect: %s" % str(e))
-
-    # return the field coefficients
-
-    return getCoeffs(ip_list, sdict)
-
