@@ -13,7 +13,7 @@ import copy
 from service import FLService
 from numato import numato
 from npy2fif import npy2fif
-from param import Param, getParam, Str, Bool, Int, Float, Dirname	# should just use *, add __all__ @@@
+from param import Param, getParam, Str, Bool, Int, Float, Dirname # should just use *, add __all__ @@@
 from filters import filt_p, ema, cheby2, nofilt
 from sensors import *
 
@@ -124,8 +124,6 @@ def getCompField_Prim(R, filt_f, g):
 #%%
 
 tCoilStart = 0 # in seconds
-
-closedLoop = 1 # 0: open loop (OL); 1: closed loop  @@@ parameter
 
 # define dynamic field compensation parameters
 #td = 3 # duration of applied compensation segment [in seconds]
@@ -442,10 +440,11 @@ if __name__ == "__main__":
     p.register("coarseZero", 'c', Bool(), help="Flag to coarse zero sensors.", default=False)
     p.register("fineZero", 'f', Bool(), help="Flag to fine zero sensors.", default=False)
     p.register("saveName", 's', Str(), arghelp="NAME", help="prefix name to save data.")
-    p.register("savePath", None, Dirname(create=True), default=time.strftime("%Y%m%d"), arghelp="DIR", help="Path to save data, default today's date.")
+    p.register("savePath", None, Dirname(create=True), arghelp="DIR", help="Path to save data.")
     p.register("runDFC", 'd', Int(), default=0, arghelp="N", help="0 (noDFC, default), 1 (refDFC), or 2 (primDFC).")
     p.register("coilID", 'C', Int(), default=-1, arghelp="N", help="Calibrator coil id. Default none (-1).")
     p.register("duration", 't', Float(), default=0, arghelp="DUR", help="Length of recording in seconds.")
+    p.register("closedLoop", None, Bool(), default=True, help="Whether to use closed loop, default true.")
 
     p.registryMerge(sens_p)     # sensor list parameters
     p.registryMerge(filt_p)     # filter parameters
@@ -485,7 +484,7 @@ if __name__ == "__main__":
     refList = p.RefList
     primList = p.PrimList
     ADCList = p.ADCList
-
+    closedLoop = p.closedLoop
     nRef = len(refList)
     nPrim = len(primList)
     nADC = len(ADCList)

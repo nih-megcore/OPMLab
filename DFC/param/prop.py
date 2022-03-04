@@ -2,6 +2,7 @@
 their value is set, and other magic."""
 
 import os
+import time
 
 class propObj(object):
     """Property object for the Param class. Base class for
@@ -31,6 +32,16 @@ class propObj(object):
 
     def _del(self, p):
         pass
+
+    def _repl(self, s):
+        "string replacements"
+
+        if '{datestamp}' in s:
+            return s.format(datestamp = datestamp())
+        return s
+
+def datestamp():
+    return time.strftime("%Y%m%d")
 
 class Bool(propObj):
     "Store a boolean, defaults to True."
@@ -164,6 +175,7 @@ class Filename(propObj):
         name = args[0]
         if type(name) != str:
             raise ValueError(f"{self._name}: argument not a string '{name}'")
+        name = self._repl(name)         # do any string replacements
         if self._kw.get('mustExist'):
             ok = True
             if not os.access(name, os.F_OK):
@@ -189,6 +201,7 @@ class Dirname(propObj):
             raise ValueError(f"{self._name}: argument not a string '{name}'")
         if name[-1] == os.path.sep:     # strip a trailing /
             name = name[:-1]
+        name = self._repl(name)         # do any string replacements
         if not os.access(name, os.F_OK):
             if self._kw.get('create'):
                 os.mkdir(name)
