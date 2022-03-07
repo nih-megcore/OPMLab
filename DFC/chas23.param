@@ -2,7 +2,8 @@ Verbose False
 
 ipList 192.168.1.40,192.168.1.42	# no space allowed
 
-logName 20220303.log
+savePath {datestamp}
+logName {datestamp}.log
 
 runDFC 2
 Dur 90

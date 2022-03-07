@@ -126,7 +126,7 @@ def getCompField_Prim(R, filt_f, g):
 tCoilStart = 0 # in seconds
 
 # define dynamic field compensation parameters
-#td = 3 # duration of applied compensation segment [in seconds]
+
 nResets = 0 # defines the # of repetitions of a fine_zero-dfc block. If 0, the block is repeated once.
 
 fs = 1000 # sampling rate
@@ -232,12 +232,10 @@ def main(ip_list, flg_restart, flg_cz, flg_fz, sName):
     print("Press Enter")
     sys.stdin.read(1)
 
-    init = time.time()
-    print('tstart:', str((time.time()-init)*fs))
-
     for c in ADCchas:
         service.start_adc(c)
 
+    fztime = []
     for n in range(nResets+1): # this block does fine zeroing before the dfc is started
 
         # Get ready to energize the coil as quickly as possible.
@@ -250,12 +248,14 @@ def main(ip_list, flg_restart, flg_cz, flg_fz, sName):
         adcData = np.zeros(nADC)
 
         print(f"Doing fine zero {n}")
+        tfz0 = time.time()
         service.fineZero(sdict)
+        fztime.append(time.time() - tfz0)
 
         service.read_data(getData)  # begin collecting data
 
-        bozo = True
         t0 = None
+        init = time.time()
         while time.time()-init < td: # do dfc for td seconds
 
             if onceCoil:
@@ -263,11 +263,6 @@ def main(ip_list, flg_restart, flg_cz, flg_fz, sName):
                     # energize the coil
                     coil.go()
                     onceCoil = False
-
-            if time.time()-init > 5 and bozo:
-                bozo = False
-                print(f"Doing bozo")
-                service.fineZero(sdict)
 
             # 1 | get raw data from queue
             try:
@@ -378,8 +373,8 @@ def main(ip_list, flg_restart, flg_cz, flg_fz, sName):
             coil.deactivate()
             onceCoil = True
 
-    # stop clock
-    print('tstop:', str((time.time()-init)*fs))
+    fztime = np.array(fztime)
+    print("fztime:", fztime.mean(), fztime.std())
 
     # Get the final fine zero values.
     fzCoeffs = service.getCoeffs(sdict)

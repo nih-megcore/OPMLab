@@ -1,5 +1,6 @@
 # Service related calls.
 
+import time
 import logging
 from fieldline_api.fieldline_service import FieldLineService
 from fieldline_api.pycore.hardware_state import HardwareState

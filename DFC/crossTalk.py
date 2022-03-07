@@ -130,7 +130,7 @@ def getInfo(ip_list):
         print(sensID)
         print(ch_names)
         print(service.get_calibration_value(ch_names[0]))
-        for ch in ch_names[:len(refInd)+len(primInd)]:
+        for ch in ch_names[:len(refInd)]:#+len(primInd)]:
             print(ch)
             calib.append(service.get_calibration_value(ch)['calibration'])
 
@@ -140,9 +140,9 @@ def getInfo(ip_list):
 
 #%%
 
-primInd = range(15) # zero-based, EXCLUDING faulty sensor (if there is any)
-faultySens = [13] # sensor 14 does not work
-refInd = [15, 16, 17]	# need to get this from the jig.def file
+primInd = [] #range(15) # zero-based, EXCLUDING faulty sensor (if there is any)
+faultySens = []#[13] # sensor 14 does not work
+refInd = [0, 1, 2]	# need to get this from the jig.def file
 
 closedLoop = 1 # 0: open loop (OL); 1: closed loop
 
@@ -150,7 +150,7 @@ closedLoop = 1 # 0: open loop (OL); 1: closed loop
 count = 0
 g = 1e9  # to convert data into nanotesla
 fs = 1000
-
+coilID = 0
 def main(ip_list, flg_restart, flg_cz, flg_fz, amp, freq, coilType,td):
     
     # run restart | coarse | fine zeroing
@@ -161,9 +161,16 @@ def main(ip_list, flg_restart, flg_cz, flg_fz, amp, freq, coilType,td):
     if flg_fz:
         fine_zero(ip_list)
         
-    
+    # init the calibrator
+    onceCoil = False
+    if coilID >= 0:
+        coil = numato()     # initialize class to energize coil
+        coil.deactivate()   # make sure all coils are off
+        onceCoil = True
+
+
     # load additional setup parameters
-    global calib, chassID
+    global calib, chassID, sensID, chNames
     chassID, sensID, chNames, calib = getInfo(ip_list)
      
        
@@ -174,16 +181,19 @@ def main(ip_list, flg_restart, flg_cz, flg_fz, amp, freq, coilType,td):
 
     # get channel names
     chNames_Ref = []
-    for sens in refInd:
-        chNames_Ref.append(chNames[sens])
+    if refInd:
+        
+        for sens in refInd:
+            chNames_Ref.append(chNames[sens])
 
-    print(chNames_Ref)
- 
-    chNames_Prim = []
-    for sens in primInd:
-        chNames_Prim.append(chNames[sens])
+            print(chNames_Ref)
+    
+    chNames_Prim = [] 
+    if primInd:
+        for sens in primInd:
+            chNames_Prim.append(chNames[sens])
 
-    print(chNames_Prim)
+        print(chNames_Prim)
 
     
     print("acquire service")
@@ -201,19 +211,24 @@ def main(ip_list, flg_restart, flg_cz, flg_fz, amp, freq, coilType,td):
             q.put(data)
 
 
-        for ss in range(len(sensID)): # tuple containing chassis ID and sensor ID
+        for ss in range(3):#len(sensID)): # tuple containing chassis ID and sensor ID
 
             # initialize lists for saving data    
             f_raw_Ref = [] 
-            f_raw_Prim = []   
+            #f_raw_Prim = []   
             f_coeffs = [] 
-            
+            if coilID >= 0:
+                coil.preactivate(coilID)
+
+
             if sensID[ss][0]==0 or (sensID[ss][0] ==1 and sensID[ss][1]<=3):       
                 print("Now running: chassis " + str(sensID[ss][0]) + ' | sensor ' + str(sensID[ss][1]))
                 #print("press enter")
                 #sys.stdin.read(1)
-                rawDataRef = np.zeros(len(refInd))
-                rawDataPrim = np.zeros(len(primInd))  
+                if refInd:
+                    rawDataRef = np.zeros(len(refInd))
+                if primInd:
+                    rawDataPrim = np.zeros(len(primInd))  
                 global done
                 done = False
                 print(f"Doing fine zero")
@@ -226,10 +241,16 @@ def main(ip_list, flg_restart, flg_cz, flg_fz, amp, freq, coilType,td):
                     time.sleep(0.01)
 
                 global init
+                
+                service.start_adc(0)
                 init = time.time()
                 started = time.time()-init
                 print('tstart: ' + str(started*fs))
-
+                if onceCoil:
+                    if coilID >= 0:
+                        # energize the coil
+                        coil.go()
+                        onceCoil = False
                 
                 if coilType == 0:
                     service.set_bx_wave(sensID[ss][0], sensID[ss][1], FieldLineWaveType.WAVE_SINE, freq, amp)
@@ -244,26 +265,29 @@ def main(ip_list, flg_restart, flg_cz, flg_fz, amp, freq, coilType,td):
 
                 service.read_data(getData)	# begin collecting data
                 t0 = None
+                adcData = []
                 while time.time()-init < td: # do bx/by/bz for td seconds
                       
                     # 1 | get raw data from queue
                     try:
                         data = q.get(timeout=0.5) 
-
-                        for sens in range(len(refInd)):
-                            rawDataRef[sens] = data['data_frames'][chNames_Ref[sens]]['data']*calib[refInd[sens]]*g
-
-                        for sens in range(len(primInd)):
-                            rawDataPrim[sens] = data['data_frames'][chNames_Prim[sens]]['data']*calib[primInd[sens]]*g
+                        if refInd:
+                            for sens in range(len(refInd)):
+                                rawDataRef[sens] = data['data_frames'][chNames_Ref[sens]]['data']*calib[refInd[sens]]*g
+                        if primInd:
+                            for sens in range(len(primInd)):
+                                rawDataPrim[sens] = data['data_frames'][chNames_Prim[sens]]['data']*calib[primInd[sens]]*g
 
                         timestamp = data['timestamp']/25*1e3 # api uses a sampling rate of 25MHz
                         if t0 is None:
                             t0 = timestamp / 1000
                         print(timestamp / 1000 - t0)
-
-                        f_raw_Ref.append(list(np.insert(rawDataRef,0,time.time()-init)))
-                        f_raw_Prim.append(list(rawDataPrim))
-
+                        
+                        if refInd:
+                            f_raw_Ref.append(list(np.insert(rawDataRef,0,time.time()-init)))
+                        if primInd:
+                            f_raw_Prim.append(list(rawDataPrim))
+                        adcData.append(data['data_frames']['00:00:0']['data']*2.980232238769531e-07)
                         #print(count)
 
                     except queue.Empty:
@@ -286,27 +310,43 @@ def main(ip_list, flg_restart, flg_cz, flg_fz, amp, freq, coilType,td):
                 # 5.3 | stop clock
                 stopped = time.time()-init
                 print('tstop:' + str(stopped*1000))         
-                
+                # 5.3 | deactivate coil
+                if coilID >= 0:
+                    print("turning coil off")
+                    coil.deactivate()
+                    onceCoil = True
                
                 f_coeffs.append(service.get_fields(sensID[ss][0],sensID[ss][1])) 
             
 
                 # 6 | convert lists onto numpy arrays & save them
-            
-                f_raw_Ref = np.array(f_raw_Ref) 
-                f_raw_Prim = np.array(f_raw_Prim)
+                if refInd:
+                    f_raw_Ref = np.array(f_raw_Ref)
+                else:
+                    f_raw_Ref = [] 
+                if primInd:
+                    f_raw_Prim = np.array(f_raw_Prim)
+                else: 
+                    f_raw_Prim = []
                 f_coeffs = np.array(f_coeffs)
-
+                f_raw_adc = np.array(adcData)
                 
-                sPath = './crossTalkData/20220218/chass' + str(sensID[ss][0]) + '_sens' + str(sensID[ss][1]) + '_coil' + coils[coilType] + '_' + str(freq) + 'Hz_' + str(amp) + 'nT'
-       
-                chNs = chNames_Ref + chNames_Prim
-                npy2fif_raw(sPath, f_raw_Ref, f_raw_Prim, chNs, calib)
-
-                np.save(sPath + '_rawRef', f_raw_Ref)
-                np.save(sPath + '_rawPrim', f_raw_Prim)
+                sPath = './crossTalkData/20220307/chass' + str(sensID[ss][0]) + '_sens' + str(sensID[ss][1]) + '_coil' + coils[coilType] + '_' + str(freq) + 'Hz_' + str(amp) + 'nT'
+                 
+                if refInd:  
+                    np.save(sPath + '_rawRef', f_raw_Ref)
+                if primInd:
+                    np.save(sPath + '_rawPrim', f_raw_Prim)
                 np.save(sPath + '_zeroCoeffs', f_coeffs)
            
+                if refInd and primInd:
+                    chNs = chNames_Ref + chNames_Prim
+                if refInd:
+                    chNs = chNames_Ref
+                if primInd:
+                    chNs = chNames_Prim
+                
+                npy2fif_raw(sPath, f_raw_adc, f_raw_Ref, f_raw_Prim, chNs, calib)
 
                 print('done.')
 
