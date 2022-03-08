@@ -13,8 +13,8 @@ import copy
 from service import FLService
 from numato import numato
 from npy2fif import npy2fif
-from param import Param, getParam, Str, Bool, Int, Float, Dirname # should just use *, add __all__ @@@
-from filters import filt_p, ema, cheby2, nofilt
+from param import *
+from filters import *
 from sensors import *
 
 #%%
@@ -507,10 +507,13 @@ if __name__ == "__main__":
     elif filter[0] == 'c':
         cutoffFreq, order, dB = filter[1:]
         filter_ref = cheby2(nRef, cutoffFreq, N=order, dB=dB)
+    elif filter[0] == 'E':
+        cutoffFreq, order, rp, dB = filter[1:]
+        filter_ref = elliptic(nRef, cutoffFreq, N=order, rp=rp, dB=dB)
     elif filter[0] == 'n':
         filter_ref = nofilt(nRef)
     else:
-        print(f"Unknown filter type {filter}.") # @@@ maybe can't get here
+        print(f"Unknown filter type {filter}.")
         sys.exit(1)
 
     print("Connecting to IPs:", ip_list)
