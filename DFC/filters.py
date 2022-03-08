@@ -15,7 +15,7 @@ from param import Param, propObj
 # Because the filter specification is complex, we use a
 # format such as:
 #
-#   cheby2 cutoff=25 order=10 dB=80
+#   cheby2 cutoff=25 order=10 dB=60
 # or
 #   ema tau=.01
 
@@ -75,7 +75,7 @@ class Filter(propObj):
             elif name == 'c':
                 cutoff = d.get('cutoff')
                 order = d.get('order', 10)
-                dB = d.get('db', 80)
+                dB = d.get('db', 60)
                 r = (name, cutoff, order, dB)
             elif name == 'n':
                 r = (name,)
@@ -107,7 +107,7 @@ ema tau=TAU           Exponential moving average filter
 cheby2 VAR=VAL ...    Chebyshev type II, VAR may be order,
                       cutoff, or dB. cutoff is in Hz,
                       order is an int (default 10), dB is the
-                      attenuation at the cutoff, deault 80.
+                      attenuation at the cutoff, deault 60.
 nofilt                A filter that does nothing.
 The filter and var names may be either case and abbreviated.""")
 
