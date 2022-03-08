@@ -8,6 +8,9 @@ chapters:
   - file: ToDos
   - file: Measurements/Measurements
     sections:
+    - file: Measurements/20220228
+    - file: Measurements/20220218
+    - file: Measurements/20220215
     - file: Measurements/20220209
     - file: Measurements/20220207
     - file: Measurements/20220206
@@ -43,6 +46,13 @@ chapters:
     - file: Measurements/20210814
     - file: Measurements/20210813
     - file: Measurements/20210602
+  - file: Data_At_A_Glance/Data_At_A_Glance
+    sections:
+    - file: Data_At_A_Glance/20220228
+    - file: Data_At_A_Glance/20220218
+    - file: Data_At_A_Glance/20220215
+    - file: Data_At_A_Glance/20220209
+    - file: Data_At_A_Glance/20220207
   - file: Open_Issues/Open_Issues
     sections:
     - file: Open_Issues/PhaseDelay
