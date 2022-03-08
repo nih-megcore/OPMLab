@@ -5,10 +5,10 @@ GO = bytes("\r", 'utf8')
 class galileo:
 
     def __init__(self):
-        portName = "/dev/ttyACM0"
-
+        portName = "/dev/ttyUSB1"
+        
         # Open port for communication
-        self.serPort = serial.Serial(portName, 9600)
+        self.serPort = serial.Serial(portName, 9600, timeout =1)
 
     def preactivate(self, command):
         
@@ -33,6 +33,10 @@ class galileo:
 
     def go(self):
         self.serPort.write(GO)
+        #self.serPort.write(bytes(command + "\r", 'utf8'))
+        #print(command)
+        #self.serPort.write(bytes(command,'utf8'))
+        #print(self.serPort.read_all())
 
     def close(self):
         self.serPort.close()

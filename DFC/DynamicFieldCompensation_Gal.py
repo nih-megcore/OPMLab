@@ -111,26 +111,26 @@ def load_exp():
     """
 
     isi = np.loadtxt('isi.txt')
-    cs_isi = np.cumsum(isi)
-    expDur = cs_isi/1000 # in seconds
+    cs_isi = np.cumsum(isi)[:30]
+    expDur = (cs_isi)[-1]/1000 # in seconds
     expDur += 5 # add 5 seconds to experiment duration
-
+    print(cs_isi)
     # to do: enable option to read precomputed commands file
     
-    opt = 'A' # or 'W'
+    opt = 'W' # or 'W'
     if opt == 'A':
-        P = 50
-        C = 250
+        P = 1000#50
+        C = 100#250
         R = 1
         V = 1
         command = "<A" + str(V) + "," + str(P) + "," + str(C) + "," + str(R) +">" 
     elif opt == 'W':
 
         R = 1
-        C = 250
-        V1 = [0,50] 
-        V2 = [0,50]
-        V3 = [0,50]
+        C = 300
+        V1 = [20,220] 
+        #V2 = [0,50]
+        #V3 = [0,50]
         #V4 = [180,230]
         #V5 = [20,70]
         #V6 = [90,140]
@@ -139,16 +139,17 @@ def load_exp():
 
         command = "<W" +str(R) + "," + str(C) + "," \
             + str(V1[0]) + "," + str(V1[1]) + "," \
-            + str(V2[0]) + "," + str(V2[1]) + "," \
-            + str(V3[0]) + "," + str(V3[1]) + "," \
             + ">"
+            # + str(V2[0]) + "," + str(V2[1]) + "," \
+            #+ str(V3[0]) + "," + str(V3[1]) + "," \
+        
             #+ str(V4[0]) + "," + str(V4[1]) + "," \
             #+ str(V5[0]) + "," + str(V5[1]) + "," \
             #+ str(V6[0]) + "," + str(V6[1]) + "," \
             #+ str(V7[0]) + "," + str(V7[1]) + "," \
             #+ str(V8[0]) + "," + str(V8[1]) 
-            
-
+        command = "<W1,200,0,100,0,100,0,100,0,0,0,0,0,0,0,0,0,0>"            
+    print(expDur)
     print(command)	
     
     return cs_isi, expDur, command
@@ -202,6 +203,7 @@ def main(ip_list, flg_restart, flg_cz, flg_fz, sName):
         print("experiment duration: " + str(expDur) + 's')
         td = expDur
         print("# of trials: " + str(len(cs_isi)))
+        goIn =True
         #onceGalileo = True
 
     # load rotation matrices
@@ -327,9 +329,20 @@ def main(ip_list, flg_restart, flg_cz, flg_fz, sName):
                     coil.go()
                     onceCoil = False
 
-            if runGalileo and (time.time()-init > cs_isi[iCount]):
+            if runGalileo and (count >= cs_isi[iCount]) and goIn:
+                
+                print("trigger" + str(iCount) + " (" + str(cs_isi[iCount]) + ") | " + str(count))
                 gal.go()
-                iCount +=1
+                if iCount < len(cs_isi)-1:
+                    iCount +=1
+                    goIn=True
+                else:
+                    goIn = False
+                    
+                gal.preactivate(command)
+
+                #gal.close()
+                #gal = galileo()
                 # if command were a list of commands, gal.preactivate could be called here
 
 
@@ -513,7 +526,7 @@ if __name__ == "__main__":
     p.register("coilID", 'C', Int(), default=-1, arghelp="N", help="Calibrator coil id. Default none (-1).")
     p.register("duration", 't', Float(), default=0, arghelp="DUR", help="Length of recording in seconds.")
     p.register("closedLoop", None, Bool(), default=True, help="Whether to use closed loop, default true.")
-    p.register("runGalileo", 'g', Bool(), help="Flag to run Galileo Stimulator. Default False [0]")
+    p.register("runGalileo", 'g', Int(), default=0, help="Flag to run Galileo Stimulator. Default False [0]")
 
     p.registryMerge(sens_p)     # sensor list parameters
     p.registryMerge(filt_p)     # filter parameters
