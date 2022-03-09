@@ -246,12 +246,15 @@ def main(ip_list, flg_restart, flg_cz, flg_fz, sName):
         rawDataRef = np.zeros(nRef)
         rawDataPrim = np.zeros(nPrim)
         adcData = np.zeros(nADC)
+        filter_ref.restart()
 
         print(f"Doing fine zero {n}")
         tfz0 = time.time()
         service.fineZero(sdict)
         fztime.append(time.time() - tfz0)
 
+        with q.mutex:
+            q.queue.clear()
         service.read_data(getData)  # begin collecting data
 
         t0 = None
