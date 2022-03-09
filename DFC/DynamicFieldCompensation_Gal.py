@@ -110,46 +110,45 @@ def load_exp():
     load experiment to deliver stimulus via galileo system
     """
 
-    isi = np.loadtxt('isi.txt')
-    cs_isi = np.cumsum(isi)[:30]
+    isi = np.loadtxt('isi.txt') # stim isi in ms
+    cs_isi = np.cumsum(isi)
     expDur = (cs_isi)[-1]/1000 # in seconds
     expDur += 5 # add 5 seconds to experiment duration
-    print(cs_isi)
+    #print(cs_isi)
+    print(expDur)
     # to do: enable option to read precomputed commands file
     
     opt = 'W' # or 'W'
     if opt == 'A':
-        P = 1000#50
-        C = 100#250
+        P = 1000
+        C = 100
         R = 1
         V = 1
         command = "<A" + str(V) + "," + str(P) + "," + str(C) + "," + str(R) +">" 
     elif opt == 'W':
 
         R = 1
-        C = 300
-        V1 = [20,220] 
-        #V2 = [0,50]
-        #V3 = [0,50]
-        #V4 = [180,230]
-        #V5 = [20,70]
-        #V6 = [90,140]
-        #V7 = [150,200]
-        #V8 = [210,260]
+        C = 200
+        V1 = [0,100] 
+        V2 = [0,100]
+        V3 = [0,100] 
+        V4 = [0,0] # if inactive, then start-stop need to be set to 0
+        V5 = [0,0]
+        V6 = [0,0]
+        V7 = [0,0]
+        V8 = [0,0]
 
-        command = "<W" +str(R) + "," + str(C) + "," \
-            + str(V1[0]) + "," + str(V1[1]) + "," \
-            + ">"
-            # + str(V2[0]) + "," + str(V2[1]) + "," \
-            #+ str(V3[0]) + "," + str(V3[1]) + "," \
-        
-            #+ str(V4[0]) + "," + str(V4[1]) + "," \
-            #+ str(V5[0]) + "," + str(V5[1]) + "," \
-            #+ str(V6[0]) + "," + str(V6[1]) + "," \
-            #+ str(V7[0]) + "," + str(V7[1]) + "," \
-            #+ str(V8[0]) + "," + str(V8[1]) 
-        command = "<W1,200,0,100,0,100,0,100,0,0,0,0,0,0,0,0,0,0>"            
-    print(expDur)
+        command = "<W" + str(R) + "," + str(C) + "," \
+                + str(V1[0]) + "," + str(V1[1]) + "," \
+                + str(V2[0]) + "," + str(V2[1]) + "," \
+                + str(V3[0]) + "," + str(V3[1]) + "," \
+                + str(V4[0]) + "," + str(V4[1]) + "," \
+                + str(V5[0]) + "," + str(V5[1]) + "," \
+                + str(V6[0]) + "," + str(V6[1]) + "," \
+                + str(V7[0]) + "," + str(V7[1]) + "," \
+                + str(V8[0]) + "," + str(V8[1]) + ">"
+        #command = "<W1,200,0,100,0,100,0,100,0,0,0,0,0,0,0,0,0,0>"            
+    
     print(command)	
     
     return cs_isi, expDur, command
@@ -175,7 +174,6 @@ def getCompField_Prim(R, filt_f, g):
 #%%
 
 #tCoilStart = 0 # in seconds
-#runGalileo = 1 # 0 if not
 # define dynamic field compensation parameters
 
 nResets = 0 # defines the # of repetitions of a fine_zero-dfc block. If 0, the block is repeated once.
@@ -339,12 +337,7 @@ def main(ip_list, flg_restart, flg_cz, flg_fz, sName):
                 else:
                     goIn = False
                     
-                gal.preactivate(command)
-
-                #gal.close()
-                #gal = galileo()
-                # if command were a list of commands, gal.preactivate could be called here
-
+                gal.preactivate(command) # prepare next stim       
 
             # 1 | get raw data from queue
             try:
