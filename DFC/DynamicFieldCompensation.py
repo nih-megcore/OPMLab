@@ -421,8 +421,8 @@ def main(ip_list, flg_restart, flg_cz, flg_fz, sName):
     np.save(sPath + '_primInd', primInd)
     np.save(sPath + '_chanNames', chNs)
     np.save(sPath + '_calib', calib)
-
-    npy2fif(sPath, sensID, f_raw_adc, f_raw_Ref, f_raw_Prim, chNs, calib, f_compRef, f_compPrim, f_gradPrim, np.array(fzCoeffs))
+    np.save(sPath + '_sensors', np.array(sensors))
+    npy2fif(sPath, sensID, f_raw_adc, f_raw_Ref, f_raw_Prim, chNs, calib, f_compRef, f_compPrim, f_gradPrim)
 
     print('done.')
 

@@ -13,8 +13,8 @@ import copy
 from service import FLService
 from numato import numato
 from npy2fif import npy2fif
-from param import Param, getParam, Str, Bool, Int, Float, Dirname # should just use *, add __all__ @@@
-from filters import filt_p, ema, cheby2, nofilt
+from param import *
+from filters import *
 from sensors import *
 from galileo import galileo
 
@@ -130,8 +130,8 @@ def load_exp():
         R = 1
         C = 200
         V1 = [0,100] 
-        V2 = [0,100]
-        V3 = [0,100] 
+        V2 = [0,0]
+        V3 = [0,0] 
         V4 = [0,0] # if inactive, then start-stop need to be set to 0
         V5 = [0,0]
         V6 = [0,0]
@@ -203,7 +203,8 @@ def main(ip_list, flg_restart, flg_cz, flg_fz, sName):
         print("# of trials: " + str(len(cs_isi)))
         goIn =True
         #onceGalileo = True
-
+    else:
+        td = 240
     # load rotation matrices
     rot_RefI, rot_RefJ, rot_RefK = loadRotMat_RefSens() # load rot matrices
     primRotMat = loadRotMat_PrimSens()
@@ -302,13 +303,14 @@ def main(ip_list, flg_restart, flg_cz, flg_fz, sName):
         if coilID >= 0:
             coil.preactivate(coilID)
 
-        if runGalileo:
-            gal.preactivate(command)
+        #if runGalileo:
+            #gal.preactivate(command)
 
         rawDataRef = np.zeros(nRef)
         rawDataPrim = np.zeros(nPrim)
         adcData = np.zeros(nADC)
-
+        galTrigger = []
+        
         print(f"Doing fine zero {n}")
         tfz0 = time.time()
         service.fineZero(sdict)
@@ -329,15 +331,16 @@ def main(ip_list, flg_restart, flg_cz, flg_fz, sName):
 
             if runGalileo and (count >= cs_isi[iCount]) and goIn:
                 
-                print("trigger" + str(iCount) + " (" + str(cs_isi[iCount]) + ") | " + str(count))
-                gal.go()
+                print("trigger" + str(iCount))# + " (" + str(cs_isi[iCount]) + ") | " + str(count))
+                gal.go(command)
+                galTrigger.append(time.time()-init)
                 if iCount < len(cs_isi)-1:
                     iCount +=1
                     goIn=True
                 else:
                     goIn = False
                     
-                gal.preactivate(command) # prepare next stim       
+                #gal.preactivate(command) # prepare next stim       
 
             # 1 | get raw data from queue
             try:
@@ -475,6 +478,8 @@ def main(ip_list, flg_restart, flg_cz, flg_fz, sName):
     f_compPrim = np.array(f_compPrim)
     f_gradPrim = np.array(f_gradPrim)
 
+    f_galTrig = np.array(galTrigger)
+    
     print('saving data...')
     sPath = f"./{savePath}/" + prefix + sName
     chNs = chNames_Ref + chNames_Prim # add ADC name here
@@ -497,8 +502,9 @@ def main(ip_list, flg_restart, flg_cz, flg_fz, sName):
     np.save(sPath + '_primInd', primInd)
     np.save(sPath + '_chanNames', chNs)
     np.save(sPath + '_calib', calib)
-
-    npy2fif(sPath, sensID, f_raw_adc, f_raw_Ref, f_raw_Prim, chNs, calib, f_compRef, f_compPrim, f_gradPrim, np.array(fzCoeffs))
+    np.save(sPath + '_galTrig', f_galTrig)
+    np.save(sPath + '_sensors', np.array(sensors))
+    npy2fif(sPath, sensID, f_raw_adc, f_raw_Ref, f_raw_Prim, chNs, calib, f_compRef, f_compPrim, f_gradPrim)
 
     print('done.')
 
@@ -588,6 +594,9 @@ if __name__ == "__main__":
     elif filter[0] == 'c':
         cutoffFreq, order, dB = filter[1:]
         filter_ref = cheby2(nRef, cutoffFreq, N=order, dB=dB)
+    elif filter[0] == 'E':
+        cutoffFreq, order, rp, dB = filter[1:]
+        filter_ref = elliptic(nRef, cutoffFreq, N=order, rp=rp, dB=dB)
     elif filter[0] == 'n':
         filter_ref = nofilt(nRef)
     else:

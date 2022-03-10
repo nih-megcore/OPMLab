@@ -1,0 +1,7 @@
+Verbose False
+
+ipList 192.168.1.40,192.168.1.42	# no space allowed
+
+Prim 01:03
+
+restart

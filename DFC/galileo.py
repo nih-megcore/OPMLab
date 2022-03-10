@@ -1,16 +1,14 @@
 import serial
 
-GO = bytes("\r", 'utf8')
-
 class galileo:
 
     def __init__(self):
-        portName = "/dev/ttyUSB1"
+        portName = "/dev/ttyUSB0"
         
         # Open port for communication
         self.serPort = serial.Serial(portName, 9600, timeout =1)
 
-    def preactivate(self, command):
+    def go(self,command):
         
         """
         send the command but don't press enter
@@ -27,16 +25,9 @@ class galileo:
             - V1On is the on time for valve 1 in ms
             - V1Off is the off time for valve 1 in ms
 
-        """        
+        """       
         s = command
-        self.serPort.write(bytes(s, 'utf8'))
-
-    def go(self):
-        self.serPort.write(GO)
-        #self.serPort.write(bytes(command + "\r", 'utf8'))
-        #print(command)
-        #self.serPort.write(bytes(command,'utf8'))
-        #print(self.serPort.read_all())
+        self.serPort.write(bytes(s + "\r", 'utf8'))
 
     def close(self):
         self.serPort.close()
