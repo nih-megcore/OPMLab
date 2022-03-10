@@ -1,0 +1,22 @@
+ipList 192.168.1.43,192.1.44,192.168.1.40,192.168.1.42	# no space allowed
+
+savePath data/{datestamp}
+logName logs/{datestamp}.log
+
+saveName emptyRoom_4chass
+
+Closedloop True
+
+runDFC 0
+Dur 300
+
+coilID -1
+
+#ADC 00:00
+#Ref 01:01 01:02 01:03
+Prim 0:* 1:* 2:* 3:*
+
+#Filter cheby2 cutoff=22
+#Filter ellip cutoff=25 rp=.1
+#Filter ema tau=.01
+Filter nofilt
