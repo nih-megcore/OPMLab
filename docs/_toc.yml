@@ -8,6 +8,10 @@ chapters:
   - file: ToDos
   - file: Measurements/Measurements
     sections:
+    - file: Measurements/20220310
+    - file: Measurements/20220309
+    - file: Measurements/20220307
+    - file: Measurements/20220304
     - file: Measurements/20220228
     - file: Measurements/20220218
     - file: Measurements/20220215
@@ -48,6 +52,9 @@ chapters:
     - file: Measurements/20210602
   - file: Data_At_A_Glance/Data_At_A_Glance
     sections:
+    - file: Data_At_A_Glance/20220310
+    - file: Data_At_A_Glance/20220309
+    - file: Data_At_A_Glance/20220304
     - file: Data_At_A_Glance/20220228
     - file: Data_At_A_Glance/20220218
     - file: Data_At_A_Glance/20220215
