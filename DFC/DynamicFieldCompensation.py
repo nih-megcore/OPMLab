@@ -84,9 +84,10 @@ def loadRotMat_PrimSens():
     load pre-computed rotation matrices for primary sensors
     """
 
-    f = open('RefinedAxes.txt', 'r') # open('OPM_Axes_New.txt', 'r')
+    f = open('OPM_Axes_20220314.txt')# open('RefinedAxes.txt', 'r')# open('OPM_Axes_20220314.txt')# open('RefinedAxes.txt', 'r') #open('OPM_Axes_20220314.txt')  #open('RefinedAxes.txt', 'r') # open('OPM_Axes_20220314.txt') open('OPM_Axes_New.txt', 'r')
     Lines = f.readlines()
 
+    indx = np.array([1,6,7,4,5,2,3,8,9,14,15,12,13,10,11,16])-1
     count = 1
     primRotMat = np.zeros([16,3,3])
     # Strips the newline character
@@ -99,9 +100,10 @@ def loadRotMat_PrimSens():
         else:
             matr[row,:] = np.array(line.split(),dtype=float)
             if row==2:
-                primRotMat[count-2,:,:]=matr
+                primRotMat[indx[count-2],:,:]=matr
             row +=1
-
+    
+                
     return primRotMat
 
 
@@ -422,7 +424,7 @@ def main(ip_list, flg_restart, flg_cz, flg_fz, sName):
     np.save(sPath + '_chanNames', chNs)
     np.save(sPath + '_calib', calib)
     np.save(sPath + '_sensors', np.array(sensors))
-    npy2fif(sPath, sensID, f_raw_adc, f_raw_Ref, f_raw_Prim, chNs, calib, f_compRef, f_compPrim, f_gradPrim)
+    npy2fif(sPath, sensID, f_raw_adc, f_raw_Ref, f_raw_Prim, f_filt, chNs, calib, f_compRef, f_compPrim, f_gradPrim)
 
     print('done.')
 

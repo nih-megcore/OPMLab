@@ -127,7 +127,7 @@ tCoilStart = 0 # in seconds
 
 # define dynamic field compensation parameters
 
-nResets = 10 # defines the # of repetitions of a fine_zero-dfc block. If 0, the block is repeated once.
+nResets = 20 # defines the # of repetitions of a fine_zero-dfc block. If 0, the block is repeated once.
 
 fs = 1000 # sampling rate
 
@@ -161,8 +161,8 @@ def main(ip_list, flg_restart, flg_cz, flg_fz, sName):
     # sdict format for talking to the api
     sdict = slist2sdict(sensors)
 
-    #sdict2 = slist2sdict(sensors[nRef:]) #only do fine zero in primary sensors
-    sdict2 = slist2sdict(sensors)
+    sdict2 = slist2sdict(sensors[nRef:]) #only do fine zero in primary sensors
+    #sdict2 = slist2sdict(sensors)
     
     dfcInd = primInd    # @@@ parameter
     nDfc = len(dfcInd)

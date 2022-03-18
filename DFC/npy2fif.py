@@ -1,7 +1,8 @@
 import mne
 import numpy as np
 
-def npy2fif(sPath, sensID, rawADC, rawRef, rawPrim, chNames, calib, compRef, compPrim, grad):
+def npy2fif(sPath, sensID, rawADC, rawRef, rawPrim, filtRef, chNames, calib, compRef, compPrim, grad):
+   
     print("[npy2fif]")
     g = 1e9
     n_channels = len(chNames)
@@ -31,6 +32,8 @@ def npy2fif(sPath, sensID, rawADC, rawRef, rawPrim, chNames, calib, compRef, com
         ch_names.append(name+'-BZ_CL')
     print(ch_names)
     
+    for name in chNames[:nRef]:
+        ch_names.append(name + '_filt')
      
     # append compensation fields in bx, by as 'mag' types
     coils = ['bx','by']
@@ -45,7 +48,7 @@ def npy2fif(sPath, sensID, rawADC, rawRef, rawPrim, chNames, calib, compRef, com
     print(ch_names)
 
     global info
-    ch_types = ['stim']*ii + ['mag']*n_channels + ['mag']*n_channels*2 + ['grad']*(n_channels-nRef)
+    ch_types = ['stim']*ii + ['mag']*n_channels + ['mag']*nRef +  ['mag']*n_channels*2 + ['grad']*(n_channels-nRef)
     print(len(ch_types))
     info = mne.create_info(ch_names, ch_types=ch_types, sfreq=sfreq)
     info['description'] = sPath
@@ -63,24 +66,31 @@ def npy2fif(sPath, sensID, rawADC, rawRef, rawPrim, chNames, calib, compRef, com
         info['chs'][aa]['cal'] = 2.980232238769531e-07
     
     print(n)
-    # compensation fields bx,by 
     
+    # filtered reference sensors
+    startInd = n_channels+ii
+    for n in range(nRef):
+        info['chs'][n + startInd]['cal'] = 1e-15
+        
+    # compensation fields bx,by     
+    startInd += nRef
     for n in range(n_channels*2):
-        info['chs'][n+n_channels+ii]['cal'] = 1e-15
+        info['chs'][n + startInd]['cal'] = 1e-15
   
-    print(n+n_channels+ii)
+    print(n+startInd)
+    
     # gradiometer response 
-   
+    startInd += (n_channels*2)
     for n in range(n_channels-3):
         print(len(info['chs']),n+(n_channels*3)+ii)
-        info['chs'][n+(n_channels*3)+ii]['cal'] = 1e-15
+        info['chs'][n + startInd]['cal'] = 1e-15
  
-    print(n+(n_channels*3)+ii)         
+    print(n+startInd)         
     global dat
-    print(rawADC.shape, rawRef.shape, rawPrim.shape)
+    print(rawADC.shape, rawRef.shape, rawPrim.shape, filtRef.shape)
     if ii==1:
         rawADC.shape = (rawADC.shape[0],1)
-    dat = np.concatenate((rawADC, rawRef[:,1:]/g, rawPrim/g), axis = 1)
+    dat = np.concatenate((rawADC, rawRef[:,1:]/g, rawPrim/g, filtRef/g), axis = 1)
     
     crefs = compRef.reshape(compRef.shape[0],compRef.shape[1]*2)
     cprims = compPrim[:,:,0:2]
