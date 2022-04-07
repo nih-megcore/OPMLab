@@ -57,8 +57,12 @@ def npy2fif(sPath, sensID, rawADC, rawRef, rawPrim, filtRef, chNames, calib, com
     # add calibration information
     # ADC and raw data
     print(calib)
-
+    
+    print(sensID)
+    print(n_channels)
+    print(ii)
     for n in range(ii, n_channels+ii):
+        print(sensID[n-ii])
         info['chs'][n]['cal'] = calib[sensID[n-ii]]
         print(info['chs'][n]['cal'])      
          

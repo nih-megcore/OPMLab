@@ -84,10 +84,10 @@ def loadRotMat_PrimSens():
     load pre-computed rotation matrices for primary sensors
     """
 
-    f = open('OPM_Axes_20220314.txt')# open('RefinedAxes.txt', 'r')# open('OPM_Axes_20220314.txt')# open('RefinedAxes.txt', 'r') #open('OPM_Axes_20220314.txt')  #open('RefinedAxes.txt', 'r') # open('OPM_Axes_20220314.txt') open('OPM_Axes_New.txt', 'r')
+    f = open('RefinedAxes.txt' ,'r')# open('OPM_Axes_20220314.txt') #open('Toms_Axes.txt', 'r') # open('OPM_Axes_20220314.txt')# open('RefinedAxes.txt', 'r')# open('Toms_Axes.txt', 'r')
     Lines = f.readlines()
 
-    indx = np.array([1,6,7,4,5,2,3,8,9,14,15,12,13,10,11,16])-1
+    #indx = np.array([1,6,7,4,5,2,3,8,9,14,15,12,13,10,11,16])-1
     count = 1
     primRotMat = np.zeros([16,3,3])
     # Strips the newline character
@@ -100,7 +100,7 @@ def loadRotMat_PrimSens():
         else:
             matr[row,:] = np.array(line.split(),dtype=float)
             if row==2:
-                primRotMat[indx[count-2],:,:]=matr
+                primRotMat[count-2,:,:]=matr
             row +=1
     
                 
@@ -337,7 +337,8 @@ def main(ip_list, flg_restart, flg_cz, flg_fz, sName):
                 # the sensor # within the chassis is the index into array of rotation matrices
                 # index origin 0
                 c, s = sensID[primInd[sens]]
-                bx, by, bz = getCompField_Prim(primRotMat[s-1], filt_f, 1)
+                bx, by, _ = getCompField_Prim(primRotMat[s-1], filt_f, 1)
+                _, _, bz = getCompField_Prim(primRotMat[s-1],rawDataRef,1)
 
                 compPrim[sens,:] = np.array([bx, by, bz])   # save compensation values
                 gradPrim[sens] = rawDataPrim[sens] - bz     # compute 1st-order gradiometer

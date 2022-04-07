@@ -3,7 +3,7 @@ ipList 192.168.1.40,192.168.1.42	# no space allowed
 savePath data/{datestamp}
 logName logs/{datestamp}.log
 
-saveName DoorProtocol_swappedSens_NominalAngles
+saveName rotMatTest_refinedAngles_taped
 Closedloop True
 
 runDFC 2
@@ -14,7 +14,7 @@ ADC 00:00
 Ref 01:01 01:02 01:03
 Prim 00:*
 
-#Filter cheby2 cutoff=22
+Filter cheby2 cutoff=22
 #Filter ellip cutoff=25 rp=.1 
-Filter ema tau=.01
+#Filter ema tau=.01
 #Filter nofilt

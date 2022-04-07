@@ -114,6 +114,9 @@ def getCompField_Prim(R, filt_f, g):
     - g: scaling factor to transform values to nT
     """
 
+    if filt_f is None:
+        return 0., 0., 0.
+        
     compensat_f = g * R.dot(filt_f)
     bx = compensat_f[0]  # compensation to be applied on x coil
     by = compensat_f[1]  # compensation to be applied on y coil
@@ -127,7 +130,7 @@ tCoilStart = 0 # in seconds
 
 # define dynamic field compensation parameters
 
-nResets = 20 # defines the # of repetitions of a fine_zero-dfc block. If 0, the block is repeated once.
+nResets = 9 # defines the # of repetitions of a fine_zero-dfc block. If 0, the block is repeated once.
 
 fs = 1000 # sampling rate
 
@@ -189,7 +192,7 @@ def main(ip_list, flg_restart, flg_cz, flg_fz, sName):
     print('loaded sensor IDs:', sensID)
     print('sensors:', sensors)
     print('sdict:', sdict)
-
+    print('calib:', calib)	
     # Get channel names and calibration values by type.
 
     chNames_Ref = []
@@ -220,7 +223,7 @@ def main(ip_list, flg_restart, flg_cz, flg_fz, sName):
     f_gradPrim = []
     f_coeffs = []
 
-    q = queue.Queue(50) # queue is needed to access bz data outside the getData callback
+    q = queue.Queue(5) # queue is needed to access bz data outside the getData callback
 
     def getData(data):
         """
@@ -239,6 +242,10 @@ def main(ip_list, flg_restart, flg_cz, flg_fz, sName):
         service.start_adc(c)
 
     fztime = []
+    init0 = time.time()
+         
+
+    #service.read_data(getData) 
     for n in range(nResets+1): # this block does fine zeroing before the dfc is started
 
         # Get ready to energize the coil as quickly as possible.
@@ -259,10 +266,12 @@ def main(ip_list, flg_restart, flg_cz, flg_fz, sName):
             service.fineZero(sdict2)
         fztime.append(time.time() - tfz0)
 
-        with q.mutex:
-            q.queue.clear()
-        service.read_data(getData)  # begin collecting data
+#        with q.mutex:
+#            q.queue.clear()
+#        service.read_data(getData)  # begin collecting data
 
+        if n==0:
+            service.read_data(getData)
         t0 = None
         init = time.time()
         while time.time()-init < td: # do dfc for td seconds
@@ -278,22 +287,29 @@ def main(ip_list, flg_restart, flg_cz, flg_fz, sName):
                 data = q.get(timeout=0.5)
 
                 for sens in range(nRef):
-                    rawDataRef[sens] = data['data_frames'][chNames_Ref[sens]]['data']*calib_Ref[sens]*g
-
+                    if chNames_Ref[sens] in data['data_frames']:
+                        rawDataRef[sens] = data['data_frames'][chNames_Ref[sens]]['data']*calib_Ref[sens]*g
+                    else:
+                        rawDataRef[sens] = -1
+                        
                 for sens in range(nPrim):
-                    rawDataPrim[sens] = data['data_frames'][chNames_Prim[sens]]['data']*calib_Prim[sens]*g
-
+                    if chNames_Prim[sens] in data['data_frames']:
+                        rawDataPrim[sens] = data['data_frames'][chNames_Prim[sens]]['data']*calib_Prim[sens]*g
+                    else:
+                        rawDataPrim[sens] = -1
                 for i, c in enumerate(ADCchas):
                     name = f"{c:02d}:00:0"
-                    adcData[i] = data['data_frames'][name]['data']*2.980232238769531e-07 # @@@ give this a name
-
+                    if name in data['data_frames']:
+                        adcData[i] = data['data_frames'][name]['data']*2.980232238769531e-07 # @@@ give this a name
+                    else:
+                        adcData[i] = 0
                 timestamp = data['timestamp']/25*1e3 # api uses a sampling rate of 25MHz
                 if t0 is None:
                     t0 = timestamp / 1000
                 if count % 100 == 0:
-                    print(timestamp / 1000 - t0)
+                    print(timestamp / 1000) #print(timestamp / 1000 - t0)
 
-                f_raw_Ref.append(list(np.insert(rawDataRef,0,time.time()-init)))
+                f_raw_Ref.append(list(np.insert(rawDataRef,0,timestamp/1000)))#time.time()-init)))
                 f_raw_Prim.append(list(rawDataPrim))
                 f_raw_adc.append(list(adcData))
 
@@ -307,7 +323,8 @@ def main(ip_list, flg_restart, flg_cz, flg_fz, sName):
                 sensor_dict[c] = []
 
             # 2 | filter the reference sensors
-
+            
+            filt_f = None
             if refInd:
                 filt_f = filter_ref(rawDataRef)
                 f_filt.append(filt_f)
@@ -383,7 +400,7 @@ def main(ip_list, flg_restart, flg_cz, flg_fz, sName):
         np.save(sPath + '_FZcoeffsRep'+ str(n), np.array(fzCoeffs))
 
         # 5.2 | stop getdata callback
-        service.read_data()
+        #service.read_data()
 
         # 5.3 | deactivate coil
         if coilID >= 0:
@@ -404,6 +421,7 @@ def main(ip_list, flg_restart, flg_cz, flg_fz, sName):
     for c in ADCchas:
         service.stop_adc(c)
 
+    service.read_data()
     # 6 | convert lists onto numpy arrays & save them
 
     f_raw_Ref = np.array(f_raw_Ref)
@@ -438,7 +456,7 @@ def main(ip_list, flg_restart, flg_cz, flg_fz, sName):
     np.save(sPath + '_chanNames', chNs)
     np.save(sPath + '_calib', calib)
     np.save(sPath + '_sensors', np.array(sensors))
-    npy2fif(sPath, sensID, f_raw_adc, f_raw_Ref, f_raw_Prim, chNs, calib, f_compRef, f_compPrim, f_gradPrim)
+    npy2fif(sPath, sensors, f_raw_adc, f_raw_Ref, f_raw_Prim,f_filt, chNs, calib, f_compRef, f_compPrim, f_gradPrim)
 
     print('done.')
 
