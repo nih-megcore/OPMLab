@@ -84,7 +84,7 @@ def loadRotMat_PrimSens():
     load pre-computed rotation matrices for primary sensors
     """
 
-    f = open('RefinedAxes.txt' ,'r')# open('OPM_Axes_20220314.txt') #open('Toms_Axes.txt', 'r') # open('OPM_Axes_20220314.txt')# open('RefinedAxes.txt', 'r')# open('Toms_Axes.txt', 'r')
+    f = open('Toms_Axes.txt' ,'r')# open('OPM_Axes_20220314.txt') #open('Toms_Axes.txt', 'r') # open('OPM_Axes_20220314.txt')# open('RefinedAxes.txt', 'r')# open('Toms_Axes.txt', 'r')
     Lines = f.readlines()
 
     #indx = np.array([1,6,7,4,5,2,3,8,9,14,15,12,13,10,11,16])-1

@@ -2,20 +2,20 @@ Verbose False
 
 ipList 192.168.1.40,192.168.1.42	# no space allowed
 
-savePath {datestamp}
-saveName emptyRoomLisa
-logName {datestamp}.log
+savePath data/{datestamp}
+saveName testPilot
+logName logs/{datestamp}.log
 
-runDFC 2
-runGalileo 0
+runDFC 0
+runGalileo 1
 Dur 240
 coilID -1
 
 ADC 00:00
-Ref 01:01 01:02 01:03
+Ref 01:01 01:02 01:03 
 Prim 00:*
 
-Filter cheby2 cutoff=55
+Filter noFilt
 
 Closedloop True
 

@@ -85,7 +85,7 @@ def loadRotMat_PrimSens():
     load pre-computed rotation matrices for primary sensors
     """
 
-    f = open('RefinedAxes.txt', 'r') # open('OPM_Axes_New.txt', 'r')
+    f = open('Toms_Axes.txt', 'r') # open('OPM_Axes_New.txt', 'r')
     Lines = f.readlines()
 
     count = 1
@@ -111,9 +111,10 @@ def load_exp():
     """
 
     isi = np.loadtxt('isi.txt') # stim isi in ms
+    isi[0] += 3000
     cs_isi = np.cumsum(isi)
     expDur = (cs_isi)[-1]/1000 # in seconds
-    expDur += 5 # add 5 seconds to experiment duration
+    expDur += 7 # add 5 seconds to experiment duration
     #print(cs_isi)
     print(expDur)
     # to do: enable option to read precomputed commands file
@@ -129,9 +130,9 @@ def load_exp():
 
         R = 1
         C = 200
-        V1 = [0,100] 
-        V2 = [0,0]
-        V3 = [0,0] 
+        V1 = [0,50] 
+        V2 = [0,50]
+        V3 = [0,50] 
         V4 = [0,0] # if inactive, then start-stop need to be set to 0
         V5 = [0,0]
         V6 = [0,0]
@@ -198,6 +199,7 @@ def main(ip_list, flg_restart, flg_cz, flg_fz, sName):
     if runGalileo:
         gal = galileo()
         cs_isi, expDur, command = load_exp()
+        print("cs_isi", cs_isi[0])
         print("experiment duration: " + str(expDur) + 's')
         td = expDur
         print("# of trials: " + str(len(cs_isi)))
@@ -313,13 +315,16 @@ def main(ip_list, flg_restart, flg_cz, flg_fz, sName):
         
         print(f"Doing fine zero {n}")
         tfz0 = time.time()
-        service.fineZero(sdict)
+        if nRef + nPrim>0:
+            service.fineZero(sdict)
         fztime.append(time.time() - tfz0)
 
         service.read_data(getData)  # begin collecting data
 
         t0 = None
         init = time.time()
+        timeArr = np.arange(0,(expDur+1)*1000)
+        tt=0
         iCount = 0
         while time.time()-init < td: # do dfc for td seconds
 
@@ -328,12 +333,18 @@ def main(ip_list, flg_restart, flg_cz, flg_fz, sName):
                     # energize the coil
                     coil.go()
                     onceCoil = False
+            
+            if ((time.time()-init)*1000)>=timeArr[tt]:
+                print((time.time()-init)*1000)
+                tt+=1
 
-            if runGalileo and (count >= cs_isi[iCount]) and goIn:
+            
+            if runGalileo and (timeArr[tt] >= cs_isi[iCount]) and goIn:
                 
                 print("trigger" + str(iCount))# + " (" + str(cs_isi[iCount]) + ") | " + str(count))
-                gal.go(command)
                 galTrigger.append(time.time()-init)
+                gal.go(command)
+                #galTrigger.append(time.time()-init)
                 if iCount < len(cs_isi)-1:
                     iCount +=1
                     goIn=True
@@ -410,7 +421,9 @@ def main(ip_list, flg_restart, flg_cz, flg_fz, sName):
                 # the sensor # within the chassis is the index into array of rotation matrices
                 # index origin 0
                 c, s = sensID[primInd[sens]]
-                bx, by, bz = getCompField_Prim(primRotMat[s-1], filt_f, 1)
+                bx, by, _ = getCompField_Prim(primRotMat[s-1], filt_f, 1)
+                _, _, bz = getCompField_Prim(primRotMat[s-1],rawDataRef,1)
+
 
                 compPrim[sens,:] = np.array([bx, by, bz])   # save compensation values
                 gradPrim[sens] = rawDataPrim[sens] - bz     # compute 1st-order gradiometer
@@ -504,7 +517,7 @@ def main(ip_list, flg_restart, flg_cz, flg_fz, sName):
     np.save(sPath + '_calib', calib)
     np.save(sPath + '_galTrig', f_galTrig)
     np.save(sPath + '_sensors', np.array(sensors))
-    npy2fif(sPath, sensID, f_raw_adc, f_raw_Ref, f_raw_Prim, chNs, calib, f_compRef, f_compPrim, f_gradPrim)
+    npy2fif(sPath, sensID, f_raw_adc, f_raw_Ref, f_raw_Prim,f_filt, chNs, calib, f_compRef, f_compPrim, f_gradPrim)
 
     print('done.')
 

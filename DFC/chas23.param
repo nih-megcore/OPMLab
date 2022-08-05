@@ -3,18 +3,19 @@ ipList 192.168.1.40,192.168.1.42	# no space allowed
 savePath data/{datestamp}
 logName logs/{datestamp}.log
 
-saveName rotMatTest_refinedAngles_taped
+saveName ACN_GalileoStim
 Closedloop True
 
-runDFC 2
-Dur 180
-coilID 0
+runDFC 0
+Dur 240
+coilID -1
+runGalileo 1
 
-ADC 00:00
+ADC 00:00 01:00
 Ref 01:01 01:02 01:03
 Prim 00:*
 
-Filter cheby2 cutoff=22
+Filter cheby2 cutoff=55
 #Filter ellip cutoff=25 rp=.1 
 #Filter ema tau=.01
 #Filter nofilt
