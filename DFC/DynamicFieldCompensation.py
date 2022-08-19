@@ -10,8 +10,8 @@ import numpy as np
 import signal
 import copy
 
-from service import FLService
-from numato import numato
+from service import FLService # FieldLine api needed for this
+from numato import numato # class used to control the test dipole coil
 from npy2fif import npy2fif
 from param import *
 from filters import *
@@ -20,12 +20,16 @@ from sensors import *
 #%%
 
 """
-Dynamic field compensation (dfc) for every incoming sample.
-This process consists of:
-1. Get sample (sample = data*calibration coefficient [in T])
-2. Compute exponential moving average
-3. Compute compensation fields using predefined 'rotation' matrices
-4. Apply compensation fields
+Dynamic field compensation uses FiedlLine api to apply compensation
+to the internal transverse coils for both references and primary sensors.
+
+IMPORTANT | The current version [spring 2022]:
+- assumes that all reference sensors are located in the same chassis
+
+TODO:
+- include position information of the primary/reference sensors and save it to .fif
+- make dfcInd controlable within .param file 
+  (dfcInd is the variable that controls to which primary sensors dfc is applied)
 """
 
 # Handle ^C
@@ -42,13 +46,16 @@ class DimError(ValueError):
         return 'dimension mismatch: dictInd and primInd are not of the same length'
 
 def loadRotMat_RefSens():
+    
     """
     Load pre-computed rotation matrices for reference sensors (I,J,K).
-    The I,J,K sensors are placed in the IJK coordinate system we need
-    to translate the measured fields in the IJK coordinate system
-    onto the xyz coordinate system where the bx,by,bz coils of
-    each sensor is defined. The last row of the rot matrices was ommited
-    since we don't need to adjust the bz coil of the ref sensors.
+    The I,J,K sensors are placed in the fixture coordinate system (IJK). 
+    We first apply DFC onto the reference sensors. In general, we need to transform
+    the measured fields in the IJK coordinate system onto the xyz coordinate system
+    where the bx,by,bz coils of each sensor is defined. Because reference sensors are
+    oriented at right angles from one another, the transformation matrices are simplified.
+    The last row of the rotation matrices was ommited because we don't need to adjust the 
+    bz coil of the ref sensors (we are working on closed loop mode).
     """
 
     Rot_RefI = np.zeros([2, 3])
@@ -64,6 +71,7 @@ def loadRotMat_RefSens():
 
 
 def getCompField_Ref(R, filt_f, g):
+    
     """
     compute compensation fields for transverse coils of reference sensors
     input parameters:
@@ -80,19 +88,22 @@ def getCompField_Ref(R, filt_f, g):
 
 
 def loadRotMat_PrimSens():
+    
     """
-    load pre-computed rotation matrices for primary sensors
+    load pre-computed rotation matrices for primary sensors [3x3]
+    there is one rotation matrix per primary sensor
+    the definition is setup-dependent: it depends on the xyz coordinate system
+    and the orientation of the primary sensors relative to the references.
     """
 
-    f = open('Toms_Axes.txt' ,'r')# open('OPM_Axes_20220314.txt') #open('Toms_Axes.txt', 'r') # open('OPM_Axes_20220314.txt')# open('RefinedAxes.txt', 'r')# open('Toms_Axes.txt', 'r')
+    f = open('OPM_Axes.txt' ,'r') 
     Lines = f.readlines()
-
-    #indx = np.array([1,6,7,4,5,2,3,8,9,14,15,12,13,10,11,16])-1
+    
     count = 1
     primRotMat = np.zeros([16,3,3])
+    
     # Strips the newline character
     for line in Lines:
-
         if line in str(count)+'\n': # sensor number
             count+=1
             row = 0
@@ -101,15 +112,15 @@ def loadRotMat_PrimSens():
             matr[row,:] = np.array(line.split(),dtype=float)
             if row==2:
                 primRotMat[count-2,:,:]=matr
-            row +=1
-    
+            row +=1  
                 
     return primRotMat
 
 
 def getCompField_Prim(R, filt_f, g):
+    
     """
-    compute compensation fields for transverse coils of reference sensors
+    compute compensation fields for transverse coils of primary sensors
     input parameters:
     - R: pre-loaded rotation matrix of primary sensors
     - filt_f: filtered measured reference fields
@@ -125,12 +136,10 @@ def getCompField_Prim(R, filt_f, g):
 
 #%%
 
-tCoilStart = 0 # in seconds
+tCoilStart = 0 # control when to energize coil after fine-zero has been completed (in seconds)
 
 # define dynamic field compensation parameters
-
 nResets = 0 # defines the # of repetitions of a fine_zero-dfc block. If 0, the block is repeated once.
-
 fs = 1000 # sampling rate
 
 # other variables
@@ -140,7 +149,7 @@ g = 1e9  # to convert data into nanotesla
 def main(ip_list, flg_restart, flg_cz, flg_fz, sName):
     global done
 
-    # init the calibrator
+    # init the test coil
     onceCoil = False
     if coilID >= 0:
         coil = numato()     # initialize class to energize coil
@@ -148,7 +157,7 @@ def main(ip_list, flg_restart, flg_cz, flg_fz, sName):
         onceCoil = True
 
     # load rotation matrices
-    rot_RefI, rot_RefJ, rot_RefK = loadRotMat_RefSens() # load rot matrices
+    rot_RefI, rot_RefJ, rot_RefK = loadRotMat_RefSens() 
     primRotMat = loadRotMat_PrimSens()
 
     # Get the FieldLine service
@@ -157,10 +166,10 @@ def main(ip_list, flg_restart, flg_cz, flg_fz, sName):
     # Get the full list of sensor (c, s) pairs from the hardware.
     sensID = service.getSensors()
 
-    # sensors we will use as (c, s) pairs, and their indices into sensID
+    # sensors we will use as (c, s) pairs saved into sensID
     sensors, refInd, primInd = getIndArrays(sensID, refList, primList)
 
-    # sdict format for talking to the api
+    # sdict format for talking to the fieldline api
     sdict = slist2sdict(sensors)
 
     dfcInd = primInd    # @@@ parameter
@@ -190,7 +199,6 @@ def main(ip_list, flg_restart, flg_cz, flg_fz, sName):
     print('sdict:', sdict)
 
     # Get channel names and calibration values by type.
-
     chNames_Ref = []
     calib_Ref = []
     for sens in refInd:
@@ -240,8 +248,7 @@ def main(ip_list, flg_restart, flg_cz, flg_fz, sName):
     fztime = []
     for n in range(nResets+1): # this block does fine zeroing before the dfc is started
 
-        # Get ready to energize the coil as quickly as possible.
-
+        # Get ready to energize the coil as quickly as possible
         if coilID >= 0:
             coil.preactivate(coilID)
 
@@ -274,10 +281,10 @@ def main(ip_list, flg_restart, flg_cz, flg_fz, sName):
                 data = q.get(timeout=0.5)
 
                 for sens in range(nRef):
-                    rawDataRef[sens] = data['data_frames'][chNames_Ref[sens]]['data']*calib_Ref[sens]*g
+                    rawDataRef[sens] = data['data_frames'][chNames_Ref[sens]]['data']*calib_Ref[sens]*g # in nT
 
                 for sens in range(nPrim):
-                    rawDataPrim[sens] = data['data_frames'][chNames_Prim[sens]]['data']*calib_Prim[sens]*g
+                    rawDataPrim[sens] = data['data_frames'][chNames_Prim[sens]]['data']*calib_Prim[sens]*g # in nT
 
                 for i, c in enumerate(ADCchas):
                     name = f"{c:02d}:00:0"
@@ -297,20 +304,18 @@ def main(ip_list, flg_restart, flg_cz, flg_fz, sName):
                 print("empty")
                 continue
 
-            # 1.1 | reinitialize the dict for adjust_fields()
+            # 2 | reinitialize the dict for adjust_fields()
 
             for c in chassID:
                 sensor_dict[c] = []
 
-            # 2 | filter the reference sensors
+            # 3 | Reference Sensors
 
             if refInd:
                 filt_f = filter_ref(rawDataRef)
                 f_filt.append(filt_f)
 
-                # 3 | compute & save compensation fields
-
-                # 3.1 | Ref sensors
+                # 3.1 | Compute compensation fields
                 bx_I, by_I = getCompField_Ref(rot_RefI, filt_f, 1)
                 bx_J, by_J = getCompField_Ref(rot_RefJ, filt_f, 1)
                 bx_K, by_K = getCompField_Ref(rot_RefK, filt_f, 1)
@@ -321,7 +326,7 @@ def main(ip_list, flg_restart, flg_cz, flg_fz, sName):
                     sensor_dict[c].append((sensID[refInd[1]][1], -bx_J, -by_J, None))
                     sensor_dict[c].append((sensID[refInd[2]][1], -bx_K, -by_K, None))
 
-                # 3.1.1 | save compensation values onto compRef matrix
+                # 3.2 | Save compensation values onto compRef matrix
 
                 compRef = np.zeros([nRef,2])
                 compRef[0,0], compRef[0,1] = bx_I, by_I
@@ -329,30 +334,33 @@ def main(ip_list, flg_restart, flg_cz, flg_fz, sName):
                 compRef[2,0], compRef[2,1] = bx_K, by_K
                 f_compRef.append(compRef)
 
-            # 3.2 | Primary sensors
+            # 4 | Primary sensors
 
             compPrim = np.zeros([nPrim, 3])
             gradPrim = np.zeros(nPrim)
+            
             for sens in range(nPrim):
-                # the sensor # within the chassis is the index into array of rotation matrices
-                # index origin 0
+                # 4.1 | Compute compensation fields and synthetic gradiometer
+                # the sensor # within the chassis is the index is 1 based; 
+                # index of rotation matrix is 0 based (hence s-1)
                 c, s = sensID[primInd[sens]]
-                bx, by, _ = getCompField_Prim(primRotMat[s-1], filt_f, 1)
-                _, _, bz = getCompField_Prim(primRotMat[s-1],rawDataRef,1)
+                bx, by, _ = getCompField_Prim(primRotMat[s-1], filt_f, 1) # we don't need bz compensation due to closed-loop operation
+                _, _, bz = getCompField_Prim(primRotMat[s-1],rawDataRef,1) # use unfiltered ref data for synthetic gradiometry
 
+                # 4.1 | Save compensation fields and synthetic gradiometer
                 compPrim[sens,:] = np.array([bx, by, bz])   # save compensation values
                 gradPrim[sens] = rawDataPrim[sens] - bz     # compute 1st-order gradiometer
 
-                # record compensation for selected primary sensors
+                # 4.2 | Add compensation field to dictionary
                 if runDFC > 1 and (primInd[sens] in dfcInd):
                     sensor_dict[c].append((s, -bx, -by, None))
 
             f_compPrim.append(compPrim)
             f_gradPrim.append(gradPrim)
-
+            
+            # 5 | call adjust_fields() : fieldline service function to adjust fields in tranverse coils within sensors
             if runDFC > 0:
-                # 4 | call adjust_fields()
-                service.adjust_fields(sensor_dict) # apply compensation field
+                service.adjust_fields(sensor_dict) 
 
             if flgControlC:
                 print('bye')
@@ -360,20 +368,20 @@ def main(ip_list, flg_restart, flg_cz, flg_fz, sName):
 
         # Out of the while loop.
 
-        # 5 | reset calls
+        # 6 | reset calls
 
         if runDFC > 0:
-            # 5.1 | reset adjust_fields()
+            # 6.1 | reset adjust_fields()
             # use the last sensor dict
             for c in chassID:
                 for i in range(len(sensor_dict[c])):
                     sensor_dict[c][i] = (sensor_dict[c][i][0], 0, 0, 0)
             service.adjust_fields(sensor_dict)
 
-        # 5.2 | stop getdata callback
+        # 6.2 | stop getdata callback
         service.read_data()
 
-        # 5.3 | deactivate coil
+        # 6.3 | deactivate coil
         if coilID >= 0:
             print("turning coil off")
             coil.deactivate()
@@ -391,7 +399,7 @@ def main(ip_list, flg_restart, flg_cz, flg_fz, sName):
     for c in ADCchas:
         service.stop_adc(c)
 
-    # 6 | convert lists onto numpy arrays & save them
+    # 7 | convert lists onto numpy arrays & save them
 
     f_raw_Ref = np.array(f_raw_Ref)
     f_raw_Prim = np.array(f_raw_Prim)
