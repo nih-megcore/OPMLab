@@ -10,7 +10,7 @@ Programs in **/v2** correspond to the Spring 2023 release. This release was deve
 #### V2
 **New features/enhancements**
 - to avoid the blocking behavior of *queue* .put() and .get(), *queue* was replaced with a *deque*, for which .append() and .popleft() have no locks, and a threading.Event() was used to synchronize access to the *deque*.
-- *get_data* may place >=1 items when is called in the *deque*. To ensure all samples are recorded properly, a loop is called to empty *deque* before allowing new items to populate *deque*
+- *get_data* may place >=1 items in the *deque* when it is called. To ensure all samples are recorded properly, a loop is called to empty *deque* before allowing new items to populate *deque*
 - compensation fields are computed only for the last item in the *deque*. In turn, *adjust_fields()* - the function that modifies the internal coil currents based on the compensation fields - is not necessarily called at every sample. To illustrate this, suppose the first adjust_fields() was called at t=0 samples, and the next adjust_fields() was called at t=4 samples. During the interval where *adjust_fields()* is not called (t=[1,2,3]samples), internal coil currents are based on the compensation fields computed at t=0 samples.
 - compensation fields are computed for all sensors at once using tensor multiplication
 - recording duration is now set based on elapsed samples instead of elapsed time
