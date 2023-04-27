@@ -37,6 +37,8 @@ DFC_7x8.py --param example_param.param # don't do any
 (to do)
 
 **Requirements**:
+
+(to do > add cross platform yml file)
 - Fieldline API >=0.4.2 [?]
 - Setup-specific sensor coordinates & coordinate systems - see wiki page [wip]
 - Currently only working with Python 3.9
