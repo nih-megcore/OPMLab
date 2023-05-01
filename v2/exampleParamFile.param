@@ -2,12 +2,10 @@ ipList 192.168.1.43,192.168.1.44,192.168.1.40,192.168.1.42	# no space allowed
 
 savePath data/{datestamp}
 saveName test 
-logName logs/{datestamp}
 
 runDFC 0 # 0 = noDFC; 2 = DFC applied to ALL sensors
 Dur 30 # in seconds
 coilID -1 # for calibration
-
 
 ADCList 00:00 01:00 02:00 03:00
 Ref 00:09 00:10 00:11 
