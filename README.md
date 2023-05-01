@@ -1,10 +1,12 @@
 # Dynamic Field Compensation
 
-The software in this repository has been developed at the NIMH MEG Core Facility. This code requires FieldLine's (FL) API to dynamically correct the fields measured by their OPMs. 
+This implementation of dynamic field compensation (DFC) aims to mitigate cross-axis projection errors (CAPE) by maintaining each OPM sensor close to zero-field along its transverse axes (x,y); it does that by applying transformed reference field measurements to the on-sensor coils along the transverse axis. The implementationsthat have been released so far assume that Fieldline (FL) V2 sensors are used and that the sensors are operated in closed loop mode.
 
-The version of the programs used in [Robinson et al., 2022](https://www.sciencedirect.com/science/article/pii/S1053811922006747?via%3Dihub) can be found in the **/v1** directory. This release was developed using FL v2 sensors, and tested on a setup with n=19 sensors (16 primary sensors arranged in a 4x4 grid, and 3 orthogonally arrranged reference sensors above the array).
+The software in this repository has been developed at the NIMH MEG Core Facility. This code requires FL API to dynamically correct the fields measured by their OPMs. 
 
-Programs in **/v2** correspond to the Spring 2023 release. This release was developed using FL v2 sensors, FL-API 0.4.3, and tested on a setup with n=59 sensors (56 primary sensors arranged in a 7x8 grid, and 3 orthogonally arrranged reference sensors above the array).
+The version of the programs used in [Robinson et al., 2022](https://www.sciencedirect.com/science/article/pii/S1053811922006747?via%3Dihub) can be found in the **/v1** directory. This release was developed using FL V2 sensors, and tested on a setup with n=19 sensors (16 primary sensors arranged in a 4x4 grid, and 3 orthogonally arrranged reference sensors above the array).
+
+Programs in **/v2** correspond to the Spring 2023 release. This release was developed using FL V2 sensors, FL-API 0.4.3, and tested on a setup with n=59 sensors (56 primary sensors arranged in a 7x8 grid, and 3 orthogonally arrranged reference sensors above the array).
 
 ### RELEASE NOTES
 #### V2
