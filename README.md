@@ -34,16 +34,29 @@ DFC_7x8.py --param example_param.param # don't do any
 
 It is a convenient approach to define a set of input parameters from a single file.
 - _ipList_: the ip address(es) of the chassis that the user wants to operate. It should follow the same order as the daisy-chained chassis in the lab, starting with the Master chassis. 
-- savePath & savename: saving directory / filename
-- runDFC: 0 [no DFC] or 2 [apply DFC to all sensors] 
-- Dur: experiment duration, in seconds
-- coilID: this parameter is specific to the NIH setup and it controls which coil will be energized during calibration. A calibration electronics box is connected to the acquisition computer and to a calibration prism that contains 20 coils. _coilID_ is used as an input to the _numato_ class (defined in numato.py), which sends coil activation/stop command to a USB port in the calibration box. Set it to -1 if to disable this option
-- ADCList: list of ADC channels to record from
-- Ref: list of magnetometers that operate as reference sensors
-- Prim: list of magnetometers that operate as primary sensors
+- _savePath_ & _savename_: saving directory / filename
+- _runDFC_: 0 [no DFC] or 2 [apply DFC to all sensors] 
+- _Dur_: experiment duration, in seconds
+- _coilID_: this parameter is specific to the NIH setup and it controls which coil will be energized during calibration. A calibration electronics box is connected to the acquisition computer and to a calibration prism that contains 20 coils. _coilID_ is used as an input to the _numato_ class (defined in numato.py), which sends coil activation/stop command to a USB port in the calibration box. Set it to -1 if to disable this option
+- _ADCList_: list of ADC channels to record from
+- _Ref_: list of magnetometers that operate as reference sensors
+- _Prim_: list of magnetometers that operate as primary sensors
+- _presets_: if runDFC is set to 2, _presets_ provides a shortcut to select a pre-defined sensor pattern to which DFC will be applied. These presets were defined based on the 7x8 sensor grid.  preset = 1 applies DFC to all primary sensors; presets 2,3 apply DFC to primary sensors in a checkerboard fashion (with half of the sensors having DFC ON); presets 4,5,6,7 apply DFC to half of the sensors in the setup, either column-wise or row-wise. 
 
-- presets: if runDFC is set to 2, _presets_ provides a shortcut to select a pre-defined sensor pattern to which DFC will be applied. These presets were defined based on the 7x8 sensor grid.  preset = 1 applies DFC to all primary sensors; presets 2,3 apply DFC to primary sensors in a checkerboard fashion (with half of the sensors having DFC ON); presets 4,5,6,7 apply DFC to half of the sensors in the setup, either column-wise or row-wise. 
+![alt text](https://user-images.githubusercontent.com/74140759/235463624-dcb93fef-cf2c-4365-be71-6a678fe584a4.png)
 
+- _Filter_: the following options have been implemented so far: 
+  - exponential moving average, with the time constant _tau_ used to define the cutoff at -3dB
+    ```
+    import numpy as np
+    
+    Fs = 1000 # sampling rate 
+    tau = 0.005 # in seconds
+    a = np.exp(-1 / (tau * Fs))
+    cutoff = Fs * (1 - a) / (2 * np.pi * a)
+    ```
+  - chebyshev type 2 
+  - elliptical 
 
 An example .param file can be found under /v2/exampleParam.param. In this example, we used 4 chassis.
 ```
