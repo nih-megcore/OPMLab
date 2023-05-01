@@ -1,6 +1,6 @@
 # Dynamic Field Compensation
 
-This implementation of dynamic field compensation (DFC) aims to mitigate cross-axis projection errors (CAPE) by maintaining each OPM sensor close to zero-field along its transverse axes (x,y); it does that by applying transformed reference field measurements to the on-sensor coils along the transverse axis. The implementationsthat have been released so far assume that Fieldline (FL) V2 sensors are used and that the sensors are operated in closed loop mode.
+This implementation of dynamic field compensation (DFC) aims to mitigate cross-axis projection errors (CAPE) by maintaining each OPM sensor close to zero-field along its transverse axes (x,y); it does that by applying transformed field measurements from 3 designated magnetometers (here on defined as reference magnetometers) to the on-sensor coils along the transverse axis. The implementationsthat have been released so far assume that Fieldline (FL) V2 sensors are used and that the sensors are operated in closed loop mode.
 
 The software in this repository has been developed at the NIMH MEG Core Facility. This code requires FL API to dynamically correct the fields measured by their OPMs. 
 
@@ -32,7 +32,40 @@ DFC_7x8.py --param example_param.param # don't do any
 
 #### .param file
 
-(to do)
+It is a convenient approach to define a set of input parameters from a single file.
+- _ipList_: the ip address(es) of the chassis that the user wants to operate. It should follow the same order as the daisy-chained chassis in the lab, starting with the Master chassis. 
+- savePath & savename: saving directory / filename
+- runDFC: 0 [no DFC] or 2 [apply DFC to all sensors] 
+- Dur: experiment duration, in seconds
+- coilID: this parameter is specific to the NIH setup and it controls which coil will be energized during calibration. A calibration electronics box is connected to the acquisition computer and to a calibration prism that contains 20 coils. _coilID_ is used as an input to the _numato_ class (defined in numato.py), which sends coil activation/stop command to a USB port in the calibration box. Set it to -1 if to disable this option
+- ADCList: list of ADC channels to record from
+- Ref: list of magnetometers that operate as reference sensors
+- Prim: list of magnetometers that operate as primary sensors
+
+- presets: if runDFC is set to 2, _presets_ provides a shortcut to select a pre-defined sensor pattern to which DFC will be applied. These presets were defined based on the 7x8 sensor grid.  preset = 1 applies DFC to all primary sensors; presets 2,3 apply DFC to primary sensors in a checkerboard fashion (with half of the sensors having DFC ON); presets 4,5,6,7 apply DFC to half of the sensors in the setup, either column-wise or row-wise. 
+
+
+An example .param file can be found under /v2/exampleParam.param. In this example, we used 4 chassis.
+```
+ipList 192.168.1.43,192.168.1.44,192.168.1.40,192.168.1.42	# no space allowed
+
+savePath data/{datestamp}
+saveName test 
+
+runDFC 0 # 0 = noDFC; 2 = DFC applied to ALL sensors
+Dur 30 # in seconds
+coilID -1 # for calibration
+
+ADCList 00:00 01:00 02:00 03:00
+Ref 00:09 00:10 00:11 
+Prim 00:01 00:02 00:03 00:04 00:05 00:06 00:07 00:08 01:* 02:* 03:*
+presets 1 # shortcut to control onto which sensor DFC is applied [1-7, check presets.py] 
+
+Filter cheby2 cutoff=13 #ema tau=0.03
+
+Closedloop True
+```
+
 
 #### output
 
