@@ -1,6 +1,6 @@
 # Dynamic Field Compensation
 
-This implementation of dynamic field compensation (DFC) aims to mitigate cross-axis projection errors (CAPE) by maintaining each OPM sensor close to zero-field along its transverse axes (x,y); it does that by applying transformed field measurements from 3 designated magnetometers (here on defined as reference magnetometers) to the on-sensor coils along the transverse axis. The implementationsthat have been released so far assume that Fieldline (FL) V2 sensors are used and that the sensors are operated in closed loop mode.
+This implementation of dynamic field compensation (DFC) aims to mitigate cross-axis projection errors (CAPE) by maintaining each OPM sensor close to zero-field along its transverse axes (x,y); it does that by applying transformed field measurements from 3 designated magnetometers (orthogonally arranged; here on defined as reference magnetometers) to the on-sensor coils along the transverse axis. The implementations that have been released so far assume that Fieldline (FL) V2 sensors are used and that the sensors are operated in closed loop mode.
 
 The software in this repository has been developed at the NIMH MEG Core Facility. This code requires FL API to dynamically correct the fields measured by their OPMs. 
 
