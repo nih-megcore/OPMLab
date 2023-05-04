@@ -1,0 +1,29 @@
+name: opmLab
+channels:
+  - anaconda
+  - conda-forge
+  - defaults
+dependencies:
+  - ipython=8.4.0
+  - matplotlib-inline=0.1.2
+  - openssl=1.1.1s
+  - pandas=1.4.2
+  - pip=21.2.4
+  - prompt-toolkit=3.0.20
+  - ptyprocess=0.7.0
+  - pygments=2.11.2
+  - pyopengl=3.1.1a1
+  - python=3.9.7
+  - python-dateutil=2.8.2
+  - python_abi=3.9
+  - tensorly=0.7.0
+  - tk=8.6.11
+  - wheel=0.37.1
+  - pip:
+    #- fieldline-api==0.4.3
+    - matplotlib==3.5.1
+    - mne==0.24.1
+    - numpy==1.22.2
+    - pyparsing==3.0.7
+    - pyserial==3.5
+    - scipy==1.8.0
