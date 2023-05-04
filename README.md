@@ -83,6 +83,8 @@ Closedloop True
 #### output
 
 (to do)
+- .fif file
+- .pkl file: _data.pkl, _sens.pkl --> these pickle fiels are based on the struct() and SensorManager() classes, defined in constants.py and sensors.py, respectively; open them with load_pickle() function in io_dfc.py;if not using io_dfc.py, make sure you load sensors.py and constants.py info 
 
 **Requirements**:
 
