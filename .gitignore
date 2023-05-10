@@ -1,31 +1,11 @@
-# gitignore
-.gitignore
-
 # Python Related #
 ###################
 __pycache__/
 *.pyc
-docs/_*/*
-docs/auto_examples
-docs/modules
-*.egg*
-_build/
-dist/
-.cache/
-htmlcov
-.pytest_cache/*
-dev/
 
 # Logs and databases #
 ######################
 *.log
-*.sql
-*.sqlite
-
-# iPython Notebook Caches #
-###########################
-scripts/nilearn_cache/
-.ipynb_checkpoints
 
 # OS generated files #
 ######################
@@ -37,28 +17,13 @@ scripts/nilearn_cache/
 thumbs.db
 Thumbs.db
 
-# Tests & Coverage
-##################
-.coverage
-htmlcov/
-
-# PyCharm
-#########
-.idea
-
-# TOX
-#####
-.tox
-.tox/*
-.DS_Store
-
 # Imported from pyctf #
 #######################
 jig.py
 
 # Backup files #
 ################
-*~
+*~ *.bak
 
 # Data #
 ########
