@@ -82,13 +82,25 @@ Closedloop True
 
 #### output
 
-(to do)
-- .fif file
-- .pkl file: _data.pkl, _sens.pkl --> these pickle fiels are based on the struct() and SensorManager() classes, defined in constants.py and sensors.py, respectively; open them with load_pickle() function in io_dfc.py;if not using io_dfc.py, make sure you load sensors.py and constants.py info 
+- .fif file: mne-python object
+- .pkl files: _data.pkl, _sens.pkl --> these pickle files are based on the struct() and SensorManager() classes, defined in constants.py and sensors.py, respectively; open them with load_pickle() function in io_dfc.py;if not using io_dfc.py, make sure to load sensors.py and constants.py info 
+  - to find out which fields exist inside each .pkl file, use ```data.__dict__.keys()``` or ```sens.__dict__.keys()```
+  - _data.pkl file contains all raw data recorded in by the api, including a t_DFC field that keeps track of when DFC was applied
+```
+# load data
+fileName = '/full/path/to/rawfile.fif'
+fileName_ = fileName[:-len('_raw.fif')]
+data = loadPickle(f"{fileName_}_data.pkl")
 
-**Requirements**:
+# access t_DFC field
+t_DFC_ = data.t_DFC.flatten()
+t_DFC_ = t_DFC_[:np.where(t_DFC_==-1)[0][0]].astype(int) # remove extra items
 
-(to do > add cross platform yml file)
-- Fieldline API >=0.4.2 [?]
-- Setup-specific sensor coordinates & coordinate systems - see wiki page [wip]
-- Currently only working with Python 3.9
+# create empty array and set elements to 1 when DFC was applied
+is_DFC = np.zeros(t_DFC_[-1]+1)
+is_DFC[t_DFC_] = 1 # times when DFC was applied
+
+# plot (may need to zoom in)
+plt.plot(is_DFC)
+plt.show()
+```
